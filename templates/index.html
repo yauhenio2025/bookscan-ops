@@ -1,0 +1,237 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Bookscan Ops</title>
+<style>
+  :root {
+    color-scheme: dark;
+    --surface-1: #1a1a19;      /* page */
+    --surface-2: #232322;      /* cards */
+    --surface-3: #2c2c2b;      /* inset */
+    --border:    #3a3a38;
+    --text-primary:   #ffffff;
+    --text-secondary: #c3c2b7;
+    --text-muted:     #8b8a80;
+    --accent:   #3987e5;       /* single data hue */
+    --good:     #0ca30c;
+    --warning:  #fab219;
+    --serious:  #ec835a;
+    --critical: #d03b3b;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--surface-1); color: var(--text-secondary);
+    font: 14px/1.45 -apple-system, "Segoe UI", system-ui, sans-serif;
+    padding: 20px; max-width: 1180px; margin-inline: auto;
+  }
+  h1 { font-size: 17px; color: var(--text-primary); margin: 0; font-weight: 650; }
+  h2 { font-size: 12px; color: var(--text-muted); text-transform: uppercase;
+       letter-spacing: .07em; margin: 26px 0 10px; font-weight: 600; }
+  .mono { font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: 12px; }
+  .topbar { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
+  .pill { display: inline-flex; align-items: center; gap: 7px; padding: 5px 12px;
+          border-radius: 999px; background: var(--surface-2);
+          border: 1px solid var(--border); font-weight: 600; font-size: 13px; }
+  .dot { width: 9px; height: 9px; border-radius: 50%; flex: none; }
+  .spacer { flex: 1; }
+  .muted { color: var(--text-muted); }
+  .grid { display: grid; gap: 12px; }
+  .tiles { grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); }
+  .card { background: var(--surface-2); border: 1px solid var(--border);
+          border-radius: 10px; padding: 14px 16px; }
+  .tile .v { font-size: 26px; font-weight: 700; color: var(--text-primary);
+             font-variant-numeric: tabular-nums; margin-top: 2px; }
+  .tile .k { font-size: 11px; text-transform: uppercase; letter-spacing: .06em;
+             color: var(--text-muted); font-weight: 600; }
+  .tile .sub { font-size: 12px; color: var(--text-muted); margin-top: 2px; }
+  .bar { height: 8px; background: var(--surface-3); border-radius: 4px;
+         overflow: hidden; margin-top: 10px; }
+  .bar > i { display: block; height: 100%; background: var(--accent);
+             border-radius: 4px; }
+  .accounts { grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); }
+  .acct .head { display: flex; align-items: baseline; gap: 8px; }
+  .acct .label { font-weight: 700; color: var(--text-primary); }
+  .acct .nums { font-variant-numeric: tabular-nums; margin-top: 6px; }
+  .acct .nums b { color: var(--text-primary); font-size: 20px; }
+  table { width: 100%; border-collapse: collapse; }
+  th { text-align: left; font-size: 11px; text-transform: uppercase;
+       letter-spacing: .05em; color: var(--text-muted); font-weight: 600;
+       padding: 6px 10px; border-bottom: 1px solid var(--border); }
+  td { padding: 6px 10px; border-bottom: 1px solid var(--surface-3);
+       vertical-align: top; }
+  td.num { font-variant-numeric: tabular-nums; white-space: nowrap; }
+  tr:last-child td { border-bottom: 0; }
+  .cat { font-weight: 600; white-space: nowrap; }
+  details { margin-top: 8px; }
+  summary { cursor: pointer; color: var(--text-muted); font-weight: 600;
+            font-size: 12px; }
+  pre { background: var(--surface-3); border: 1px solid var(--border);
+        border-radius: 8px; padding: 12px; overflow-x: auto; white-space: pre;
+        color: var(--text-secondary); }
+  .restart { border-left: 3px solid var(--accent); }
+  .cmd { display: flex; gap: 8px; align-items: center; margin-top: 8px; }
+  .cmd pre { margin: 0; flex: 1; }
+  button { background: var(--surface-3); color: var(--text-primary);
+           border: 1px solid var(--border); border-radius: 7px; padding: 7px 13px;
+           font-weight: 600; cursor: pointer; }
+  button:hover { border-color: var(--accent); }
+  .banner { display: none; padding: 12px 16px; border-radius: 10px;
+            margin-top: 14px; font-weight: 600; border: 1px solid; }
+  .banner.down { display: block; color: var(--critical);
+                 border-color: var(--critical); background: rgba(208,59,59,.08); }
+  .banner.stale { display: block; color: var(--warning);
+                  border-color: var(--warning); background: rgba(250,178,25,.07); }
+  @media (max-width: 640px) { body { padding: 12px; } }
+</style>
+</head>
+<body>
+  <div class="topbar">
+    <h1>Bookscan Ops</h1>
+    <span class="pill" id="beat"><span class="dot" style="background:var(--text-muted)"></span><span>connecting…</span></span>
+    <span class="pill" id="loop"><span class="dot" style="background:var(--text-muted)"></span><span>loop: ?</span></span>
+    <span class="spacer"></span>
+    <span class="muted" id="host"></span>
+  </div>
+
+  <div class="banner down" id="downBanner">
+    ⚠︎ No status push for over 30 minutes — the local machine or the agent is down.
+    Downloads are NOT running. See “Restart” below for the recovery command.
+  </div>
+  <div class="banner stale" id="staleBanner">
+    ⚠︎ Last push is getting old — the agent may be catching up or the Mac is asleep.
+  </div>
+
+  <h2>Progress</h2>
+  <div class="grid tiles">
+    <div class="card tile"><div class="k">Books retired</div><div class="v" id="retired">–</div><div class="sub" id="retiredToday"></div></div>
+    <div class="card tile"><div class="k">Queue remaining</div><div class="v" id="queue">–</div><div class="sub" id="queueBooks"></div></div>
+    <div class="card tile"><div class="k">Complete</div><div class="v" id="pct">–</div><div class="bar"><i id="pctBar" style="width:0%"></i></div></div>
+    <div class="card tile"><div class="k">Downloaded</div><div class="v" id="gb">–</div><div class="sub" id="files"></div></div>
+    <div class="card tile"><div class="k">ETA</div><div class="v" id="eta">–</div><div class="sub">at recent daily rate</div></div>
+  </div>
+
+  <h2>Accounts — resets at 00:00 UTC (<span id="resetIn" class="mono"></span>)</h2>
+  <div class="grid accounts" id="accounts"></div>
+
+  <h2>Recently verified &amp; retired</h2>
+  <div class="card" style="padding:4px 0">
+    <table id="recent"><thead><tr>
+      <th>Book</th><th>Match</th><th>Fmt</th><th>Acct</th><th>When (UTC)</th>
+    </tr></thead><tbody></tbody></table>
+  </div>
+
+  <h2>Flagged — needs a human</h2>
+  <div class="card" style="padding:4px 0">
+    <table id="flagged"><thead><tr>
+      <th>Category</th><th>Book</th><th>Why</th><th>When (UTC)</th>
+    </tr></thead><tbody></tbody></table>
+  </div>
+
+  <h2>Restart</h2>
+  <div class="card restart">
+    <div>The downloader and this dashboard's agent run <b>locally</b>, detached from any
+    terminal window — closing windows does not stop them. After a <b>reboot or crash</b>,
+    paste this into Claude Code (or any terminal) on the Mac:</div>
+    <div class="cmd">
+      <pre class="mono" id="restartCmd">cd /Users/evgeny2026/llms/pimsleur/bookscan && ./run_downloads.sh</pre>
+      <button onclick="navigator.clipboard.writeText(document.getElementById('restartCmd').textContent)">Copy</button>
+    </div>
+    <div class="muted" style="margin-top:8px">It is safe to run at any time — it refuses to
+    start duplicates, never re-downloads verified books, and respects the quota floors.</div>
+  </div>
+
+  <h2>Daily history</h2>
+  <pre class="mono" id="summary">–</pre>
+
+  <details><summary>Recent local log</summary><pre class="mono" id="log">–</pre></details>
+
+<script>
+const $ = id => document.getElementById(id);
+const fmtN = n => n == null ? "–" : n.toLocaleString("en-US");
+const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const ago = s => s < 90 ? `${Math.round(s)}s ago` : s < 5400 ? `${Math.round(s/60)}m ago` : `${(s/3600).toFixed(1)}h ago`;
+const utc = t => new Date(t * 1000).toISOString().slice(5, 16).replace("T", " ");
+
+function setPill(el, color, text) {
+  el.children[0].style.background = `var(--${color})`;
+  el.children[1].textContent = text;
+}
+
+function render(d) {
+  const now = d.server_now || (Date.now() / 1000);
+  const age = d.received_at ? now - d.received_at : Infinity;
+  $("downBanner").style.display = age > 1800 ? "block" : "none";
+  $("staleBanner").style.display = (age > 420 && age <= 1800) ? "block" : "none";
+  setPill($("beat"), age <= 420 ? "good" : age <= 1800 ? "warning" : "critical",
+          age === Infinity ? "no data yet" : `agent: pushed ${ago(age)}`);
+  setPill($("loop"), d.loop_alive ? "good" : "critical",
+          d.loop_alive ? `loop: running (pid ${d.loop_pid})` : "loop: NOT RUNNING");
+  $("host").textContent = d.host || "";
+
+  const ret = d.retired || {}, q = d.queue || {};
+  $("retired").textContent = fmtN(ret.total);
+  $("retiredToday").textContent = ret.today != null ? `+${fmtN(ret.today)} today` : "";
+  $("queue").textContent = fmtN(q.videos);
+  $("queueBooks").textContent = q.books != null ? `${fmtN(q.books)} distinct books` : "";
+  const pct = d.done_pct;
+  $("pct").textContent = pct != null ? pct.toFixed(1) + "%" : "–";
+  $("pctBar").style.width = (pct || 0) + "%";
+  const st = d.store || {};
+  $("gb").textContent = st.bytes != null ? (st.bytes / 1e9).toFixed(1) + " GB" : "–";
+  $("files").textContent = st.files != null ? `${fmtN(st.files)} files` : "";
+  $("eta").textContent = d.eta_days != null ?
+      (d.eta_days > 90 ? (d.eta_days / 30.4).toFixed(1) + " mo" : Math.round(d.eta_days) + " days") : "–";
+
+  const msLeft = Date.UTC(...(x => [x.getUTCFullYear(), x.getUTCMonth(), x.getUTCDate() + 1])(new Date())) - Date.now();
+  $("resetIn").textContent = `in ${Math.floor(msLeft/3.6e6)}h ${Math.floor(msLeft/6e4)%60}m`;
+
+  $("accounts").innerHTML = (d.accounts || []).map(a => {
+    const usable = Math.max(0, (a.remaining ?? 0) - (a.reserve ?? 0));
+    const state = a.usable ? ["good", "● active"] :
+                  (a.remaining != null && a.remaining <= (a.reserve ?? 0))
+                    ? ["warning", "▮ at floor"] : ["critical", "✕ blocked"];
+    const width = a.per_day ? Math.min(100, 100 * (a.remaining ?? 0) / a.per_day) : 0;
+    return `<div class="card acct">
+      <div class="head"><span class="label">${esc(a.label)}</span>
+        <span class="muted">${a.per_day ?? "?"}/day · keeps ${a.reserve ?? "?"} free</span>
+        <span class="spacer"></span>
+        <span style="color:var(--${state[0]});font-weight:700">${state[1]}</span></div>
+      <div class="nums"><b>${fmtN(a.remaining)}</b> <span class="muted">slots left ·
+        usable ${fmtN(usable)} · we used ${fmtN(a.used)} today ·
+        ${fmtN(a.ok_total)} books all-time</span></div>
+      <div class="bar"><i style="width:${width}%"></i></div>
+    </div>`;
+  }).join("") || `<div class="card muted">no account data yet</div>`;
+
+  $("recent").tBodies[0].innerHTML = (d.recent_ok || []).map(r => `<tr>
+    <td>${esc(r.title || "?")}</td>
+    <td class="num">${r.containment != null ? (100 * r.containment).toFixed(0) + "%" : "–"}</td>
+    <td class="num">${esc(r.fmt || "")}</td>
+    <td class="num">${esc(r.account || "")}</td>
+    <td class="num muted">${r.at ? utc(r.at) : ""}</td></tr>`).join("")
+    || `<tr><td class="muted" colspan="5">none yet</td></tr>`;
+
+  $("flagged").tBodies[0].innerHTML = (d.flagged || []).map(r => `<tr>
+    <td class="cat" style="color:var(--serious)">▲ ${esc(r.category)}</td>
+    <td>${esc(r.title || "?")}</td>
+    <td class="muted">${esc(r.why || "")}</td>
+    <td class="num muted">${r.at ? utc(r.at) : ""}</td></tr>`).join("")
+    || `<tr><td class="muted" colspan="4">nothing flagged</td></tr>`;
+
+  $("summary").textContent = (d.summary_lines || []).join("\n") || "–";
+  $("log").textContent = (d.log_tail || []).join("\n") || "–";
+}
+
+async function tick() {
+  try {
+    const r = await fetch("/api/status", {cache: "no-store"});
+    if (r.ok) render(await r.json());
+  } catch (e) { /* keep last view; heartbeat pill already reflects staleness */ }
+}
+tick();
+setInterval(tick, 30000);
+</script>
+</body>
+</html>

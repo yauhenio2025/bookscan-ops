@@ -48,6 +48,10 @@
   .imgwrap .tag { position: absolute; right: 8px; bottom: 8px; font-size: 11px;
                   background: rgba(0,0,0,.65); color: #fff; padding: 2px 8px;
                   border-radius: 6px; }
+  .imgwrap .play { position: absolute; left: 8px; bottom: 8px; font-size: 12px;
+                   background: rgba(0,0,0,.7); color: #fff; padding: 4px 10px;
+                   border-radius: 6px; text-decoration: none; font-weight: 700; }
+  .imgwrap .play:hover { background: var(--accent); }
   .body { padding: 10px 12px 12px; display: flex; flex-direction: column;
           gap: 6px; flex: 1; }
   .title { color: var(--text-primary); font-weight: 650; line-height: 1.3; }
@@ -149,6 +153,9 @@ function card(r) {
          data-b="${t1 ? '/thumb/' + t1 : ''}" data-cur="a">
       <img loading="lazy" src="${t0 ? '/thumb/' + t0 : '/thumb/none.jpg'}" alt="">
       <span class="tag">cover · click to flip</span>
+      ${r.play ? `<a class="play" href="${esc(r.play)}" target="_blank"
+        onclick="event.stopPropagation()"
+        title="Plays the source video from 0:00 — works when this browser is on the Mac (or screen-shared into it)">▶ Play video</a>` : ""}
     </div>
     <div class="body">
       <div class="title">${esc(r.title || "(no title extracted)")}</div>
@@ -158,6 +165,8 @@ function card(r) {
       ${r.cand_title && r.title && r.cand_title.toLowerCase().slice(0,20) !==
           r.title.toLowerCase().slice(0,20) ?
         `<div class="facts muted">matched to: ${esc(r.cand_title)}</div>` : ""}
+      ${r.dlfile ? `<div class="facts"><a href="${esc(r.dlfile)}" target="_blank"
+        title="Opens the downloaded pdf/epub from the local store — compare its pages against the video">⇱ open downloaded file</a></div>` : ""}
       <div class="btns">
         <button class="${v === 'correct' ? 'on-correct' : ''}" onclick="verdict('${esc(r.video_id)}','correct',this)">✓ Correct</button>
         <button class="${v === 'unsure' ? 'on-unsure' : ''}" onclick="verdict('${esc(r.video_id)}','unsure',this)">? Unsure</button>

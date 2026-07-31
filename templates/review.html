@@ -1,0 +1,212 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Bookscan Review</title>
+<style>
+  :root {
+    color-scheme: dark;
+    --surface-1: #1a1a19; --surface-2: #232322; --surface-3: #2c2c2b;
+    --border: #3a3a38;
+    --text-primary: #ffffff; --text-secondary: #c3c2b7; --text-muted: #8b8a80;
+    --accent: #3987e5; --good: #0ca30c; --warning: #fab219;
+    --serious: #ec835a; --critical: #d03b3b;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--surface-1); color: var(--text-secondary);
+         font: 14px/1.45 -apple-system, "Segoe UI", system-ui, sans-serif;
+         padding: 20px; max-width: 1380px; margin-inline: auto; }
+  h1 { font-size: 17px; color: var(--text-primary); margin: 0; font-weight: 650; }
+  a { color: var(--accent); text-decoration: none; }
+  .topbar { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
+  .spacer { flex: 1; }
+  .muted { color: var(--text-muted); }
+  .mono { font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: 12px; }
+  .explain { background: var(--surface-2); border: 1px solid var(--border);
+             border-radius: 10px; padding: 12px 16px; margin: 14px 0;
+             font-size: 13px; }
+  .controls { display: flex; gap: 8px; flex-wrap: wrap; margin: 14px 0;
+              align-items: center; position: sticky; top: 0;
+              background: var(--surface-1); padding: 10px 0; z-index: 5; }
+  .controls select, .controls input {
+      background: var(--surface-3); color: var(--text-primary);
+      border: 1px solid var(--border); border-radius: 7px; padding: 7px 10px; }
+  .controls input { width: 240px; }
+  .count { font-variant-numeric: tabular-nums; }
+  .grid { display: grid; gap: 12px;
+          grid-template-columns: repeat(auto-fill, minmax(330px, 1fr)); }
+  .card { background: var(--surface-2); border: 1px solid var(--border);
+          border-radius: 10px; overflow: hidden; display: flex;
+          flex-direction: column; }
+  .card.v-correct { border-color: var(--good); }
+  .card.v-wrong { border-color: var(--critical); }
+  .card.v-unsure { border-color: var(--warning); }
+  .imgwrap { position: relative; aspect-ratio: 16/9; background: var(--surface-3);
+             cursor: pointer; }
+  .imgwrap img { width: 100%; height: 100%; object-fit: contain; display: block; }
+  .imgwrap .tag { position: absolute; right: 8px; bottom: 8px; font-size: 11px;
+                  background: rgba(0,0,0,.65); color: #fff; padding: 2px 8px;
+                  border-radius: 6px; }
+  .body { padding: 10px 12px 12px; display: flex; flex-direction: column;
+          gap: 6px; flex: 1; }
+  .title { color: var(--text-primary); font-weight: 650; line-height: 1.3; }
+  .facts { font-size: 12px; }
+  .chips { display: flex; gap: 6px; flex-wrap: wrap; font-size: 11px; }
+  .chip { padding: 2px 8px; border-radius: 999px; background: var(--surface-3);
+          border: 1px solid var(--border); white-space: nowrap; }
+  .chip.ok { color: var(--good); } .chip.warn { color: var(--warning); }
+  .chip.bad { color: var(--serious); }
+  .btns { display: flex; gap: 6px; margin-top: auto; padding-top: 8px; }
+  .btns button { flex: 1; background: var(--surface-3); color: var(--text-primary);
+                 border: 1px solid var(--border); border-radius: 7px;
+                 padding: 7px 0; font-weight: 600; cursor: pointer; }
+  .btns button:hover { border-color: var(--accent); }
+  .btns button.on-correct { background: var(--good); border-color: var(--good); color: #fff; }
+  .btns button.on-wrong { background: var(--critical); border-color: var(--critical); color: #fff; }
+  .btns button.on-unsure { background: var(--warning); border-color: var(--warning); color: #1a1a19; }
+  .pager { display: flex; gap: 10px; align-items: center; justify-content: center;
+           margin: 18px 0; }
+  .pager button { background: var(--surface-3); color: var(--text-primary);
+                  border: 1px solid var(--border); border-radius: 7px;
+                  padding: 8px 16px; font-weight: 600; cursor: pointer; }
+  .applied { font-size: 11px; color: var(--text-muted); }
+</style>
+</head>
+<body>
+  <div class="topbar">
+    <h1>Identification review</h1>
+    <a href="/">← dashboard</a>
+    <span class="spacer"></span>
+    <span class="muted count" id="progress"></span>
+  </div>
+
+  <div class="explain">
+    Each card shows the <b>actual frames identification read</b> (click the image to flip
+    cover ⇄ front-matter) beside what was deciphered. <b>✓ Correct</b> records your
+    confirmation. <b>✗ Wrong</b> fails closed: within ~2 minutes the local agent routes that
+    video back to the scan pipeline and quarantines any download. Verdicts persist on the
+    Mac; “applied ✓” means the local side has acted. <span class="muted">The “match” number on
+    downloaded books is text-overlap between pages OCR’d from the middle of your video and the
+    downloaded file — right books measure 40–90% (OCR noise eats the rest), wrong books &lt;2%.
+    It is a fingerprint comparison, not a model’s opinion.</span>
+  </div>
+
+  <div class="controls">
+    <select id="flt">
+      <option value="all">All books</option>
+      <option value="downloaded">Downloaded &amp; retired</option>
+      <option value="pending">Download queued</option>
+      <option value="flagged">Flagged by checks</option>
+      <option value="scan">Routed to scanning</option>
+      <option value="unreviewed" selected>Not yet reviewed</option>
+      <option value="wrong">Marked wrong</option>
+      <option value="notisbn">No ISBN anchor (LLM-read)</option>
+    </select>
+    <input id="q" placeholder="search title / author / ISBN" />
+    <span class="muted count" id="shown"></span>
+  </div>
+
+  <div class="grid" id="grid"></div>
+  <div class="pager">
+    <button id="prev">← Prev</button>
+    <span class="muted count" id="page"></span>
+    <button id="next">Next →</button>
+  </div>
+
+<script>
+const $ = id => document.getElementById(id);
+const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const LIMIT = 60;
+let offset = 0, total = 0, rows = [];
+
+function chip(txt, cls) { return `<span class="chip ${cls||''}">${txt}</span>`; }
+
+function routeChip(r) {
+  switch (r.route) {
+    case "download_and_skip": return chip("✓ downloaded & verified", "ok");
+    case "download_pending":
+    case "blocked_quota": return chip("⏳ download queued", "");
+    case "scan_ourselves": return chip("scan pipeline", "");
+    case "human_review": return chip("⚠ needs review", "warn");
+    default: return chip(r.route || "?", "");
+  }
+}
+
+function card(r) {
+  const v = r.verdict;
+  const t0 = r.thumbs && r.thumbs[0], t1 = r.thumbs && r.thumbs[1];
+  const isbn = r.isbn ? `${esc(r.isbn)} ${r.isbn_valid ? "✓" : "✗ checksum"}` : "no ISBN read";
+  const anchor = r.isbn_anchored ? chip("ISBN off the page ✓", "ok")
+                                 : chip("LLM-read identity", "warn");
+  const cont = r.containment != null ?
+      chip(`text overlap ${(100 * r.containment).toFixed(0)}%`, r.containment >= .18 ? "ok" : "bad") : "";
+  const flag = r.dl_category ? chip("⚑ " + esc(r.dl_category), "bad") : "";
+  const applied = v === "wrong" ? `<span class="applied">${r.verdict_applied ?
+      "applied ✓ — " + esc(r.verdict_applied) : "waiting for local agent…"}</span>` : "";
+  return `<div class="card v-${v || 'none'}" data-vid="${esc(r.video_id)}">
+    <div class="imgwrap" onclick="flip(this)" data-a="${t0 ? '/thumb/' + t0 : ''}"
+         data-b="${t1 ? '/thumb/' + t1 : ''}" data-cur="a">
+      <img loading="lazy" src="${t0 ? '/thumb/' + t0 : '/thumb/none.jpg'}" alt="">
+      <span class="tag">cover · click to flip</span>
+    </div>
+    <div class="body">
+      <div class="title">${esc(r.title || "(no title extracted)")}</div>
+      <div class="facts">${esc(r.author || "")}${r.year ? " · " + r.year : ""}<br>
+        <span class="mono">${isbn}</span></div>
+      <div class="chips">${anchor}${routeChip(r)}${cont}${flag}</div>
+      ${r.cand_title && r.title && r.cand_title.toLowerCase().slice(0,20) !==
+          r.title.toLowerCase().slice(0,20) ?
+        `<div class="facts muted">matched to: ${esc(r.cand_title)}</div>` : ""}
+      <div class="btns">
+        <button class="${v === 'correct' ? 'on-correct' : ''}" onclick="verdict('${esc(r.video_id)}','correct',this)">✓ Correct</button>
+        <button class="${v === 'unsure' ? 'on-unsure' : ''}" onclick="verdict('${esc(r.video_id)}','unsure',this)">? Unsure</button>
+        <button class="${v === 'wrong' ? 'on-wrong' : ''}" onclick="verdict('${esc(r.video_id)}','wrong',this)">✗ Wrong</button>
+      </div>${applied}
+    </div></div>`;
+}
+
+function flip(el) {
+  const cur = el.dataset.cur === "a" ? "b" : "a";
+  const src = el.dataset[cur];
+  if (!src) return;
+  el.dataset.cur = cur;
+  el.querySelector("img").src = src;
+  el.querySelector(".tag").textContent =
+      (cur === "a" ? "cover" : "front matter") + " · click to flip";
+}
+
+async function verdict(vid, v, btn) {
+  const card = btn.closest(".card");
+  const was = card.className.match(/v-(\w+)/)[1];
+  const next = was === v ? null : v;   // clicking again clears
+  await fetch("/api/verdict", {method: "POST",
+      headers: {"Content-Type": "application/json"},
+      body: JSON.stringify({video_id: vid, verdict: next})});
+  load();
+}
+
+async function load() {
+  const flt = $("flt").value, q = $("q").value;
+  const r = await fetch(`/api/review?flt=${flt}&q=${encodeURIComponent(q)}&offset=${offset}&limit=${LIMIT}`,
+                        {cache: "no-store"});
+  if (!r.ok) return;
+  const d = await r.json();
+  total = d.total; rows = d.rows;
+  $("grid").innerHTML = rows.map(card).join("") ||
+      `<div class="muted">nothing matches this filter</div>`;
+  $("shown").textContent = `${total.toLocaleString()} match`;
+  $("progress").textContent =
+      `${d.reviewed.toLocaleString()} / ${d.all_rows.toLocaleString()} reviewed · ` +
+      `${d.thumbs_synced.toLocaleString()} frames synced`;
+  $("page").textContent = total ? `${offset + 1}–${Math.min(offset + LIMIT, total)} of ${total.toLocaleString()}` : "";
+}
+
+$("prev").onclick = () => { offset = Math.max(0, offset - LIMIT); load(); };
+$("next").onclick = () => { if (offset + LIMIT < total) { offset += LIMIT; load(); } };
+$("flt").onchange = () => { offset = 0; load(); };
+let deb; $("q").oninput = () => { clearTimeout(deb); deb = setTimeout(() => { offset = 0; load(); }, 350); };
+load();
+</script>
+</body>
+</html>

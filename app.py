@@ -12,29 +12,48 @@ Auth model:
 No database: the latest snapshot lives in memory and in /tmp (ephemeral is
 fine — the agent re-pushes every couple of minutes).
 """
+import base64
 import json
 import os
+import re
 import time
 from collections import deque
 from pathlib import Path
 
 from flask import (Flask, jsonify, make_response, redirect, render_template,
-                   request)
+                   request, send_file)
 
 app = Flask(__name__)
 
 PUSH_TOKEN = os.environ.get("PUSH_TOKEN", "")
 VIEW_TOKEN = os.environ.get("VIEW_TOKEN", "")
 TMP = Path("/tmp/bookscan_ops_latest.json")
+THUMBS = Path("/tmp/bookscan_thumbs")
+MANIFEST_F = Path("/tmp/bookscan_review_manifest.json")
+VERDICTS_F = Path("/tmp/bookscan_verdicts.json")
+THUMBS.mkdir(parents=True, exist_ok=True)
 
 LATEST = {}
+MANIFEST = []          # review rows, in owner-priority order
+VERDICTS = {}          # video_id -> {verdict, note, at, applied}
 PUSH_TIMES = deque(maxlen=500)
 
-if TMP.exists():
+PLACEHOLDER = ("<svg xmlns='http://www.w3.org/2000/svg' width='560' height='315'>"
+               "<rect width='100%' height='100%' fill='#2c2c2b'/>"
+               "<text x='50%' y='50%' fill='#8b8a80' font-family='sans-serif' "
+               "font-size='15' text-anchor='middle'>frame not synced yet</text></svg>")
+
+
+def _load(path, default):
     try:
-        LATEST = json.loads(TMP.read_text())
+        return json.loads(path.read_text())
     except Exception:
-        LATEST = {}
+        return default
+
+
+LATEST = _load(TMP, {})
+MANIFEST = _load(MANIFEST_F, {}).get("rows", [])
+VERDICTS = _load(VERDICTS_F, {})
 
 
 def _viewer_ok():
@@ -43,6 +62,78 @@ def _viewer_ok():
     if request.cookies.get("vt") == VIEW_TOKEN:
         return True
     return request.args.get("token") == VIEW_TOKEN
+
+
+def _pusher_ok():
+    return PUSH_TOKEN and request.headers.get("Authorization") == f"Bearer {PUSH_TOKEN}"
+
+
+# ------------------------------------------------------------ agent endpoints
+
+@app.post("/api/review-manifest")
+def review_manifest():
+    if not _pusher_ok():
+        return jsonify({"error": "unauthorized"}), 401
+    data = request.get_json(force=True, silent=True)
+    if not isinstance(data, dict) or not isinstance(data.get("rows"), list):
+        return jsonify({"error": "bad body"}), 400
+    global MANIFEST
+    MANIFEST = data["rows"]
+    try:
+        MANIFEST_F.write_text(json.dumps(data))
+    except Exception:
+        pass
+    return jsonify({"ok": True, "rows": len(MANIFEST)})
+
+
+@app.get("/api/thumbs/have")
+def thumbs_have():
+    if not _pusher_ok():
+        return jsonify({"error": "unauthorized"}), 401
+    if request.args.get("mode") == "count":
+        return jsonify({"count": sum(1 for _ in THUMBS.glob("*.jpg"))})
+    return jsonify({"names": sorted(p.name for p in THUMBS.glob("*.jpg"))})
+
+
+@app.post("/api/thumbs")
+def thumbs_upload():
+    if not _pusher_ok():
+        return jsonify({"error": "unauthorized"}), 401
+    data = request.get_json(force=True, silent=True) or {}
+    n = 0
+    for item in data.get("items", []):
+        name = str(item.get("name", ""))
+        # Uploaded names become filesystem paths; keep them boring.
+        if not re.fullmatch(r"[A-Za-z0-9_.-]{1,80}\.jpg", name):
+            continue
+        try:
+            (THUMBS / name).write_bytes(base64.b64decode(item.get("b64", "")))
+            n += 1
+        except Exception:
+            continue
+    return jsonify({"ok": True, "written": n})
+
+
+@app.get("/api/verdicts")
+def verdicts_pull():
+    if not _pusher_ok():
+        return jsonify({"error": "unauthorized"}), 401
+    return jsonify({"verdicts": VERDICTS})
+
+
+@app.post("/api/verdicts/ack")
+def verdicts_ack():
+    if not _pusher_ok():
+        return jsonify({"error": "unauthorized"}), 401
+    data = request.get_json(force=True, silent=True) or {}
+    for vid, applied in (data.get("applied") or {}).items():
+        if vid in VERDICTS:
+            VERDICTS[vid]["applied"] = applied
+    try:
+        VERDICTS_F.write_text(json.dumps(VERDICTS))
+    except Exception:
+        pass
+    return jsonify({"ok": True})
 
 
 @app.post("/api/push")
@@ -90,6 +181,104 @@ def index():
     return resp
 
 
+# ------------------------------------------------------------ review (owner)
+
+@app.get("/review")
+def review_page():
+    if not _viewer_ok():
+        return redirect("/")
+    resp = make_response(render_template("review.html"))
+    if request.args.get("token"):
+        resp = make_response(redirect("/review"))
+        resp.set_cookie("vt", VIEW_TOKEN, max_age=180 * 24 * 3600,
+                        httponly=True, secure=True, samesite="Lax")
+    return resp
+
+
+@app.get("/api/review")
+def review_api():
+    if not _viewer_ok():
+        return jsonify({"error": "unauthorized"}), 401
+    flt = request.args.get("flt", "all")
+    qs = (request.args.get("q") or "").lower().strip()
+    offset = max(0, int(request.args.get("offset", 0)))
+    limit = min(200, int(request.args.get("limit", 60)))
+
+    def keep(r):
+        v = VERDICTS.get(r["video_id"], {}).get("verdict") or r.get("verdict")
+        if flt == "downloaded" and r.get("route") != "download_and_skip":
+            return False
+        if flt == "pending" and r.get("route") not in ("download_pending",
+                                                       "blocked_quota"):
+            return False
+        if flt == "flagged" and not r.get("dl_category"):
+            return False
+        if flt == "scan" and r.get("route") != "scan_ourselves":
+            return False
+        if flt == "unreviewed" and v:
+            return False
+        if flt == "wrong" and v != "wrong":
+            return False
+        if flt == "notisbn" and r.get("isbn_anchored"):
+            return False
+        if qs and qs not in " ".join(str(r.get(k) or "").lower() for k in
+                                     ("title", "author", "isbn", "video_id")):
+            return False
+        return True
+
+    rows = [r for r in MANIFEST if keep(r)]
+    out = []
+    for r in rows[offset:offset + limit]:
+        rr = dict(r)
+        v = VERDICTS.get(r["video_id"])
+        if v:
+            rr["verdict"] = v["verdict"]
+            rr["verdict_applied"] = v.get("applied")
+        out.append(rr)
+    reviewed = sum(1 for r in MANIFEST
+                   if VERDICTS.get(r["video_id"]) or r.get("verdict"))
+    return jsonify({"total": len(rows), "all_rows": len(MANIFEST),
+                    "reviewed": reviewed, "offset": offset, "rows": out,
+                    "thumbs_synced": sum(1 for _ in THUMBS.glob("*.jpg"))})
+
+
+@app.post("/api/verdict")
+def verdict_post():
+    if not _viewer_ok():
+        return jsonify({"error": "unauthorized"}), 401
+    data = request.get_json(force=True, silent=True) or {}
+    vid = str(data.get("video_id", ""))
+    verdict = data.get("verdict")
+    if not vid or verdict not in ("correct", "wrong", "unsure", None):
+        return jsonify({"error": "bad verdict"}), 400
+    if verdict is None:
+        VERDICTS.pop(vid, None)
+    else:
+        VERDICTS[vid] = {"verdict": verdict,
+                         "note": str(data.get("note") or "")[:300],
+                         "at": time.time(), "applied": None}
+    try:
+        VERDICTS_F.write_text(json.dumps(VERDICTS))
+    except Exception:
+        pass
+    return jsonify({"ok": True})
+
+
+@app.get("/thumb/<name>")
+def thumb(name):
+    if not _viewer_ok():
+        return "", 401
+    if not re.fullmatch(r"[A-Za-z0-9_.-]{1,80}\.jpg", name):
+        return "", 404
+    p = THUMBS / name
+    if p.exists():
+        return send_file(p, mimetype="image/jpeg", max_age=86400)
+    return PLACEHOLDER, 200, {"Content-Type": "image/svg+xml",
+                              "Cache-Control": "no-store"}
+
+
 @app.get("/healthz")
 def healthz():
-    return jsonify({"ok": True, "have_snapshot": bool(LATEST)})
+    return jsonify({"ok": True, "have_snapshot": bool(LATEST),
+                    "manifest_rows": len(MANIFEST),
+                    "thumbs": sum(1 for _ in THUMBS.glob("*.jpg"))})

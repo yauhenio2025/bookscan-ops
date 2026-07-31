@@ -223,6 +223,8 @@ def review_api():
             return False
         if flt == "notisbn" and r.get("isbn_anchored"):
             return False
+        if flt == "long" and not (r.get("minutes") and r["minutes"] >= 20):
+            return False
         if qs and qs not in " ".join(str(r.get(k) or "").lower() for k in
                                      ("title", "author", "isbn", "video_id")):
             return False
@@ -251,7 +253,8 @@ def verdict_post():
     data = request.get_json(force=True, silent=True) or {}
     vid = str(data.get("video_id", ""))
     verdict = data.get("verdict")
-    if not vid or verdict not in ("correct", "wrong", "unsure", None):
+    if not vid or verdict not in ("correct", "wrong", "unsure",
+                                  "notabook", None):
         return jsonify({"error": "bad verdict"}), 400
     if verdict is None:
         VERDICTS.pop(vid, None)

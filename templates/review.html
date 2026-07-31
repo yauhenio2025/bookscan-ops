@@ -42,6 +42,7 @@
   .card.v-correct { border-color: var(--good); }
   .card.v-wrong { border-color: var(--critical); }
   .card.v-unsure { border-color: var(--warning); }
+  .card.v-notabook { border-color: var(--text-muted); opacity: .75; }
   .imgwrap { position: relative; aspect-ratio: 16/9; background: var(--surface-3);
              cursor: pointer; }
   .imgwrap img { width: 100%; height: 100%; object-fit: contain; display: block; }
@@ -111,6 +112,7 @@
       <option value="unreviewed" selected>Not yet reviewed</option>
       <option value="wrong">Marked wrong</option>
       <option value="notisbn">No ISBN anchor (LLM-read)</option>
+      <option value="long">Long video (&gt;20 min — lecture?)</option>
     </select>
     <input id="q" placeholder="search title / author / ISBN" />
     <span class="muted count" id="shown"></span>
@@ -151,7 +153,7 @@ function card(r) {
   const cont = r.containment != null ?
       chip(`text overlap ${(100 * r.containment).toFixed(0)}%`, r.containment >= .18 ? "ok" : "bad") : "";
   const flag = r.dl_category ? chip("⚑ " + esc(r.dl_category), "bad") : "";
-  const applied = v === "wrong" ? `<span class="applied">${r.verdict_applied ?
+  const applied = (v === "wrong" || v === "notabook") ? `<span class="applied">${r.verdict_applied ?
       "applied ✓ — " + esc(r.verdict_applied) : "waiting for local agent…"}</span>` : "";
   return `<div class="card v-${v || 'none'}" data-vid="${esc(r.video_id)}">
     <div class="imgwrap" onclick="flip(this)" data-a="${t0 ? '/thumb/' + t0 : ''}"
@@ -164,7 +166,10 @@ function card(r) {
     </div>
     <div class="body">
       <div class="title">${esc(r.title || "(no title extracted)")}</div>
-      <div class="facts">${esc(r.author || "")}${r.year ? " · " + r.year : ""}<br>
+      <div class="facts">${esc(r.author || "")}${r.year ? " · " + r.year : ""}
+        ${r.minutes != null ? ` · <span style="${r.minutes >= 20 ?
+          'color:var(--warning);font-weight:700' : ''}"
+          title="length of the source video — a real flip-through runs a few minutes; 20+ suggests a lecture or footage">${r.minutes} min video${r.minutes >= 20 ? " ⚠" : ""}</span>` : ""}<br>
         <span class="mono">${isbn}</span></div>
       <div class="chips">${anchor}${routeChip(r)}${cont}${flag}</div>
       ${r.cand_title && r.title && r.cand_title.toLowerCase().slice(0,20) !==
@@ -178,7 +183,11 @@ function card(r) {
         <button class="${v === 'correct' ? 'on-correct' : ''}" onclick="verdict('${esc(r.video_id)}','correct',this)">✓ Correct</button>
         <button class="${v === 'unsure' ? 'on-unsure' : ''}" onclick="verdict('${esc(r.video_id)}','unsure',this)">? Unsure</button>
         <button class="${v === 'wrong' ? 'on-wrong' : ''}" onclick="verdict('${esc(r.video_id)}','wrong',this)">✗ Wrong</button>
-      </div>${applied}
+      </div>
+      <div class="facts" style="text-align:right"><a href="#" style="${v === 'notabook' ? 'color:var(--warning);font-weight:700' : 'color:var(--text-muted)'}"
+        title="Removes it from every queue: it is a lecture or personal footage, not a book"
+        onclick="event.preventDefault();verdict('${esc(r.video_id)}','notabook',this)">${v === 'notabook' ? "🎥 marked not-a-book" : "🎥 not a book?"}</a></div>
+      ${applied}
     </div></div>`;
 }
 

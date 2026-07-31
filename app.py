@@ -215,6 +215,8 @@ def review_api():
             return False
         if flt == "scan" and r.get("route") != "scan_ourselves":
             return False
+        if flt.startswith("scan_") and r.get("scan_kind") != flt[5:]:
+            return False
         if flt == "unreviewed" and v:
             return False
         if flt == "wrong" and v != "wrong":

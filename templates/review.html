@@ -102,7 +102,12 @@
       <option value="downloaded">Downloaded &amp; retired</option>
       <option value="pending">Download queued</option>
       <option value="flagged">Flagged by checks</option>
-      <option value="scan">Routed to scanning</option>
+      <option value="scan">Routed to scanning — all</option>
+      <option value="scan_rejected">&nbsp;&nbsp;· match found but rejected</option>
+      <option value="scan_notfound">&nbsp;&nbsp;· nothing found online</option>
+      <option value="scan_noid">&nbsp;&nbsp;· no identity extracted</option>
+      <option value="scan_dlfail">&nbsp;&nbsp;· download failed checks</option>
+      <option value="scan_unusable">&nbsp;&nbsp;· copy unusable (borrow-only)</option>
       <option value="unreviewed" selected>Not yet reviewed</option>
       <option value="wrong">Marked wrong</option>
       <option value="notisbn">No ISBN anchor (LLM-read)</option>
@@ -167,6 +172,8 @@ function card(r) {
         `<div class="facts muted">matched to: ${esc(r.cand_title)}</div>` : ""}
       ${r.dlfile ? `<div class="facts"><a href="${esc(r.dlfile)}" target="_blank"
         title="Opens the downloaded pdf/epub from the local store — compare its pages against the video">⇱ open downloaded file</a></div>` : ""}
+      ${r.searched ? `<div class="facts muted" title="the exact ISBNs and title string lookup searched Anna's with">searched: <span class="mono">${esc(r.searched)}</span></div>` : ""}
+      ${r.route_reason ? `<div class="facts" style="color:var(--warning)" title="why this book is being scanned instead of downloaded">${esc(r.route_reason)}</div>` : ""}
       <div class="btns">
         <button class="${v === 'correct' ? 'on-correct' : ''}" onclick="verdict('${esc(r.video_id)}','correct',this)">✓ Correct</button>
         <button class="${v === 'unsure' ? 'on-unsure' : ''}" onclick="verdict('${esc(r.video_id)}','unsure',this)">? Unsure</button>

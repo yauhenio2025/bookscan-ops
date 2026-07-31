@@ -205,9 +205,15 @@ async function verdict(vid, v, btn) {
   const card = btn.closest(".card");
   const was = card.className.match(/v-(\w+)/)[1];
   const next = was === v ? null : v;   // clicking again clears
+  let note = null;
+  if (next === "wrong") {
+    note = prompt("Optional — what does the video ACTUALLY show? " +
+                  "(real title / author; this is recorded with the verdict)", "")
+           || null;
+  }
   await fetch("/api/verdict", {method: "POST",
       headers: {"Content-Type": "application/json"},
-      body: JSON.stringify({video_id: vid, verdict: next})});
+      body: JSON.stringify({video_id: vid, verdict: next, note: note})});
   load();
 }
 

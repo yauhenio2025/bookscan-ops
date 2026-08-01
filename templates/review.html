@@ -103,6 +103,8 @@
       <option value="downloaded">Downloaded &amp; retired</option>
       <option value="pending">Download queued</option>
       <option value="flagged">Flagged by checks</option>
+      <option value="iaborrow">📚 Borrowable on archive.org (your script)</option>
+      <option value="iadirect">📚 archive.org open text copy</option>
       <option value="scan">Routed to scanning — all</option>
       <option value="scan_rejected">&nbsp;&nbsp;· match found but rejected</option>
       <option value="scan_notfound">&nbsp;&nbsp;· nothing found online</option>
@@ -138,6 +140,7 @@ function routeChip(r) {
     case "download_and_skip": return chip("✓ downloaded & verified", "ok");
     case "download_pending":
     case "blocked_quota": return chip("⏳ download queued", "");
+    case "ia_borrow_available": return chip("📚 borrow on IA · scan deprioritized", "warn");
     case "scan_ourselves": return chip("scan pipeline", "");
     case "human_review": return chip("⚠ needs review", "warn");
     default: return chip(r.route || "?", "");
@@ -177,6 +180,10 @@ function card(r) {
         `<div class="facts muted">matched to: ${esc(r.cand_title)}</div>` : ""}
       ${r.dlfile ? `<div class="facts"><a href="${esc(r.dlfile)}" target="_blank"
         title="Opens the downloaded pdf/epub from the local store — compare its pages against the video">⇱ open downloaded file</a></div>` : ""}
+      ${r.ia_url ? `<div class="facts"><a href="${esc(r.ia_url)}" target="_blank"
+        title="${r.ia_access === 'direct' ? 'Open text copy on archive.org' :
+        'Lending-restricted — borrow it with your own tooling'}">📚 archive.org: ${esc(r.ia_identifier)}${
+        r.ia_access === 'direct' ? ' (open copy)' : ' (borrow)'}</a></div>` : ""}
       ${r.searched ? `<div class="facts muted" title="the exact ISBNs and title string lookup searched Anna's with">searched: <span class="mono">${esc(r.searched)}</span></div>` : ""}
       ${r.route_reason ? `<div class="facts" style="color:var(--warning)" title="why this book is being scanned instead of downloaded">${esc(r.route_reason)}</div>` : ""}
       <div class="btns">

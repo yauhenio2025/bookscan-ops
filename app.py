@@ -225,6 +225,10 @@ def review_api():
             return False
         if flt == "long" and not (r.get("minutes") and r["minutes"] >= 20):
             return False
+        if flt == "iaborrow" and r.get("route") != "ia_borrow_available":
+            return False
+        if flt == "iadirect" and r.get("ia_access") != "direct":
+            return False
         if qs and qs not in " ".join(str(r.get(k) or "").lower() for k in
                                      ("title", "author", "isbn", "video_id")):
             return False

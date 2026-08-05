@@ -215,8 +215,11 @@ function card(r) {
           r.title.toLowerCase().slice(0,20) ?
         `<div class="facts muted">matched to: ${esc(r.cand_title)}</div>` : ""}
       ${r.dlfile ? `<div class="facts"><a href="${esc(r.dlfile)}" target="_blank"
-        title="Opens the downloaded pdf/epub from the local store — compare its pages against the video">⇱ open downloaded file</a></div>` : ""}
-      ${r.ia_url ? `<div class="facts"><a href="${esc(r.ia_url)}" target="_blank"
+        rel="noopener"
+        onclick="event.preventDefault();event.stopPropagation();window.open(this.href,'_blank','noopener')"
+        title="Opens the downloaded pdf/epub in a NEW tab — compare its pages against the video">⇱ open downloaded file</a></div>` : ""}
+      ${r.ia_url ? `<div class="facts"><a href="${esc(r.ia_url)}" target="_blank" rel="noopener"
+        onclick="event.preventDefault();event.stopPropagation();window.open(this.href,'_blank','noopener')"
         title="${r.ia_access === 'direct' ? 'Open text copy on archive.org' :
         'Lending-restricted — borrow it with your own tooling'}">📚 archive.org: ${esc(r.ia_identifier)}${
         r.ia_access === 'direct' ? ' (open copy)' : ' (borrow)'}</a></div>` : ""}

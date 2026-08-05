@@ -71,6 +71,11 @@
         border-radius: 8px; padding: 12px; overflow-x: auto; white-space: pre;
         color: var(--text-secondary); }
   .restart { border-left: 3px solid var(--accent); }
+  a.need { display: block; padding: 10px 12px; border-radius: 8px;
+           background: var(--surface-3); border: 1px solid var(--border);
+           color: var(--text-primary); text-decoration: none; font-size: 13px; }
+  a.need:hover { border-color: var(--accent); }
+  a.need .muted { font-size: 12px; }
   .cmd { display: flex; gap: 8px; align-items: center; margin-top: 8px; }
   .cmd pre { margin: 0; flex: 1; }
   button { background: var(--surface-3); color: var(--text-primary);
@@ -102,6 +107,26 @@
   </div>
   <div class="banner stale" id="staleBanner">
     ⚠︎ Last push is getting old — the agent may be catching up or the Mac is asleep.
+  </div>
+
+  <h2>Where your judgment is needed</h2>
+  <div class="card">
+    <div class="muted" style="margin-bottom:10px">Six places a human beats the
+      pipeline — each opens straight to its list. Everything else runs itself.</div>
+    <div style="display:grid;gap:8px;grid-template-columns:repeat(auto-fit,minmax(270px,1fr))">
+      <a class="need" href="/review?flt=kept">⭐ <b>1 · We hold it, can't prove it</b><br>
+        <span class="muted">identity strong, video too text-poor — your ✓ retires the book</span></a>
+      <a class="need" href="/review?flt=cluster">🎞 <b>2 · Short-clip folders</b><br>
+        <span class="muted">one publication filmed page by page? — retires dozens at once</span></a>
+      <a class="need" href="/review?flt=weak">📉 <b>3 · Weakest retirements</b><br>
+        <span class="muted">accepted under 30% match — where a wrong book would hide</span></a>
+      <a class="need" href="/review?flt=scan_noid">❓ <b>4 · Scan pile, no identity</b><br>
+        <span class="muted">machine read nothing; ✗ Wrong lets you type the real title</span></a>
+      <a class="need" href="/review?flt=llmretired">🤖 <b>5 · Retired on LLM identity</b><br>
+        <span class="muted">no ISBN anchor — sample for systematic error</span></a>
+      <a class="need" href="/review?flt=flagged">⚑ <b>6 · Flagged by checks</b><br>
+        <span class="muted">rejections; every bug class so far was found here</span></a>
+    </div>
   </div>
 
   <h2>Progress</h2>

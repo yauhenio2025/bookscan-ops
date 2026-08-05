@@ -99,22 +99,29 @@
 
   <div class="controls">
     <select id="flt">
-      <option value="all">All books</option>
-      <option value="downloaded">Downloaded &amp; retired</option>
-      <option value="pending">Download queued</option>
-      <option value="flagged">Flagged by checks</option>
-      <option value="iaborrow">📚 Borrowable on archive.org (your script)</option>
-      <option value="iadirect">📚 archive.org open text copy</option>
-      <option value="scan">Routed to scanning — all</option>
-      <option value="scan_rejected">&nbsp;&nbsp;· match found but rejected</option>
-      <option value="scan_notfound">&nbsp;&nbsp;· nothing found online</option>
-      <option value="scan_noid">&nbsp;&nbsp;· no identity extracted</option>
-      <option value="scan_dlfail">&nbsp;&nbsp;· download failed checks</option>
-      <option value="scan_unusable">&nbsp;&nbsp;· copy unusable (borrow-only)</option>
-      <option value="unreviewed" selected>Not yet reviewed</option>
-      <option value="wrong">Marked wrong</option>
-      <option value="notisbn">No ISBN anchor (LLM-read)</option>
-      <option value="long">Long video (&gt;20 min — lecture?)</option>
+      <optgroup label="⭐ Where your judgment is needed">
+        <option value="kept">1 · We hold it but can't prove it — your ✓ retires it</option>
+        <option value="cluster">2 · Short-clip folders — one publication?</option>
+        <option value="weak">3 · Weakest retirements (&lt;30% match)</option>
+        <option value="scan_noid">4 · Scan pile, no identity read</option>
+        <option value="llmretired">5 · Retired on LLM-read identity (no ISBN)</option>
+        <option value="flagged">6 · Flagged by checks</option>
+      </optgroup>
+      <optgroup label="Everything else">
+        <option value="all">All books</option>
+        <option value="downloaded">Downloaded &amp; retired</option>
+        <option value="pending">Download queued</option>
+        <option value="iaborrow">📚 Borrowable on archive.org (your script)</option>
+        <option value="iadirect">📚 archive.org open text copy</option>
+        <option value="scan">Routed to scanning — all</option>
+        <option value="scan_rejected">&nbsp;&nbsp;· match found but rejected</option>
+        <option value="scan_notfound">&nbsp;&nbsp;· nothing found online</option>
+        <option value="scan_dlfail">&nbsp;&nbsp;· download failed checks</option>
+        <option value="unreviewed" selected>Not yet reviewed</option>
+        <option value="wrong">Marked wrong</option>
+        <option value="notisbn">No ISBN anchor (LLM-read)</option>
+        <option value="long">Long video (&gt;20 min — lecture?)</option>
+      </optgroup>
     </select>
     <input id="q" placeholder="search title / author / ISBN" />
     <span class="muted count" id="shown"></span>
@@ -174,7 +181,9 @@ function card(r) {
           'color:var(--warning);font-weight:700' : ''}"
           title="length of the source video — a real flip-through runs a few minutes; 20+ suggests a lecture or footage">${r.minutes} min video${r.minutes >= 20 ? " ⚠" : ""}</span>` : ""}<br>
         <span class="mono">${isbn}</span></div>
-      <div class="chips">${anchor}${routeChip(r)}${cont}${flag}</div>
+      <div class="chips">${anchor}${routeChip(r)}${cont}${flag}
+        ${r.kept_unverified ? chip("⭐ copy held, needs your ✓", "warn") : ""}
+        ${r.cluster ? chip(`🎞 ${r.cluster.n} clips in ${esc(r.cluster.name).slice(0,22)}`, "") : ""}</div>
       ${r.cand_title && r.title && r.cand_title.toLowerCase().slice(0,20) !==
           r.title.toLowerCase().slice(0,20) ?
         `<div class="facts muted">matched to: ${esc(r.cand_title)}</div>` : ""}
@@ -239,6 +248,10 @@ async function load() {
       `${d.thumbs_synced.toLocaleString()} frames synced`;
   $("page").textContent = total ? `${offset + 1}–${Math.min(offset + LIMIT, total)} of ${total.toLocaleString()}` : "";
 }
+
+// Deep links from the dashboard: /review?flt=kept lands straight on that list.
+const urlFlt = new URLSearchParams(location.search).get("flt");
+if (urlFlt && [...$("flt").options].some(o => o.value === urlFlt)) $("flt").value = urlFlt;
 
 $("prev").onclick = () => { offset = Math.max(0, offset - LIMIT); load(); };
 $("next").onclick = () => { if (offset + LIMIT < total) { offset += LIMIT; load(); } };

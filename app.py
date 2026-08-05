@@ -225,6 +225,17 @@ def review_api():
             return False
         if flt == "long" and not (r.get("minutes") and r["minutes"] >= 20):
             return False
+        if flt == "kept" and not r.get("kept_unverified"):
+            return False
+        if flt == "weak" and not (r.get("route") == "download_and_skip"
+                                  and r.get("containment") is not None
+                                  and r["containment"] < 0.30):
+            return False
+        if flt == "cluster" and not r.get("cluster"):
+            return False
+        if flt == "llmretired" and not (r.get("route") == "download_and_skip"
+                                        and not r.get("isbn_anchored")):
+            return False
         if flt == "iaborrow" and r.get("route") != "ia_borrow_available":
             return False
         if flt == "iadirect" and r.get("ia_access") != "direct":

@@ -53,6 +53,18 @@
                    background: rgba(0,0,0,.7); color: #fff; padding: 4px 10px;
                    border-radius: 6px; text-decoration: none; font-weight: 700; }
   .imgwrap .play:hover { background: var(--accent); }
+  .compare { display: grid; grid-template-columns: 1fr 1fr; gap: 2px;
+             background: var(--border); }
+  .compare .side { position: relative; aspect-ratio: 3/4;
+                   background: var(--surface-3); cursor: pointer; }
+  .compare .side img { width: 100%; height: 100%; object-fit: contain; display: block; }
+  .compare .sidetag { position: absolute; top: 6px; left: 6px; font-size: 10px;
+                      background: rgba(0,0,0,.72); color: #fff; padding: 2px 7px;
+                      border-radius: 5px; z-index: 1; }
+  .compare .play { position: absolute; left: 6px; bottom: 6px; font-size: 11px;
+                   background: rgba(0,0,0,.72); color: #fff; padding: 3px 9px;
+                   border-radius: 5px; text-decoration: none; font-weight: 700; }
+  .compare .play:hover { background: var(--accent); }
   .body { padding: 10px 12px 12px; display: flex; flex-direction: column;
           gap: 6px; flex: 1; }
   .title { color: var(--text-primary); font-weight: 650; line-height: 1.3; }
@@ -165,15 +177,30 @@ function card(r) {
   const flag = r.dl_category ? chip("⚑ " + esc(r.dl_category), "bad") : "";
   const applied = (v === "wrong" || v === "notabook") ? `<span class="applied">${r.verdict_applied ?
       "applied ✓ — " + esc(r.verdict_applied) : "waiting for local agent…"}</span>` : "";
+  // Kept-copy cards answer one question — same book or not — so the video
+  // frame and the downloaded book's own title page sit side by side.
+  const pdfs = r.pdf_pages || [];
+  const compare = pdfs.length ? `
+    <div class="compare">
+      <div class="side"><span class="sidetag">your video</span>
+        <img loading="lazy" src="${t0 ? '/thumb/' + t0 : '/thumb/none.jpg'}" alt="">
+        ${r.play ? `<a class="play" href="${esc(r.play)}" target="_blank"
+          title="play the source video">▶ Play</a>` : ""}</div>
+      <div class="side" onclick="cyclePdf(this)" data-i="0"
+           data-pages='${JSON.stringify(pdfs)}'>
+        <span class="sidetag">downloaded PDF · p1 ${pdfs.length > 1 ? "· click →" : ""}</span>
+        <img loading="lazy" src="/thumb/${pdfs[0]}" alt="">
+      </div>
+    </div>` : "";
   return `<div class="card v-${v || 'none'}" data-vid="${esc(r.video_id)}">
-    <div class="imgwrap" onclick="flip(this)" data-a="${t0 ? '/thumb/' + t0 : ''}"
+    ${compare || `<div class="imgwrap" onclick="flip(this)" data-a="${t0 ? '/thumb/' + t0 : ''}"
          data-b="${t1 ? '/thumb/' + t1 : ''}" data-cur="a">
       <img loading="lazy" src="${t0 ? '/thumb/' + t0 : '/thumb/none.jpg'}" alt="">
       <span class="tag">cover · click to flip</span>
       ${r.play ? `<a class="play" href="${esc(r.play)}" target="_blank"
         onclick="event.stopPropagation()"
         title="Plays the source video from 0:00 — works when this browser is on the Mac (or screen-shared into it)">▶ Play video</a>` : ""}
-    </div>
+    </div>`}
     <div class="body">
       <div class="title">${esc(r.title || "(no title extracted)")}</div>
       <div class="facts">${esc(r.author || "")}${r.year ? " · " + r.year : ""}
@@ -205,6 +232,16 @@ function card(r) {
         onclick="event.preventDefault();verdict('${esc(r.video_id)}','notabook',this)">${v === 'notabook' ? "🎥 marked not-a-book" : "🎥 not a book?"}</a></div>
       ${applied}
     </div></div>`;
+}
+
+function cyclePdf(el) {
+  const pages = JSON.parse(el.dataset.pages || "[]");
+  if (pages.length < 2) return;
+  const i = (parseInt(el.dataset.i || "0") + 1) % pages.length;
+  el.dataset.i = i;
+  el.querySelector("img").src = "/thumb/" + pages[i];
+  el.querySelector(".sidetag").textContent =
+      `downloaded PDF · p${i + 1} · click →`;
 }
 
 function flip(el) {

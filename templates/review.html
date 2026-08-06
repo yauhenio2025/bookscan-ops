@@ -175,7 +175,7 @@ function card(r) {
   const cont = r.containment != null ?
       chip(`text overlap ${(100 * r.containment).toFixed(0)}%`, r.containment >= .18 ? "ok" : "bad") : "";
   const flag = r.dl_category ? chip("⚑ " + esc(r.dl_category), "bad") : "";
-  const applied = (v === "wrong" || v === "notabook") ? `<span class="applied">${r.verdict_applied ?
+  const applied = (v === "wrong" || v === "notabook" || v === "both") ? `<span class="applied">${r.verdict_applied ?
       "applied ✓ — " + esc(r.verdict_applied) : "waiting for local agent…"}</span>` : "";
   // Kept-copy cards answer one question — same book or not — so the video
   // frame and the downloaded book's own title page sit side by side.
@@ -230,9 +230,13 @@ function card(r) {
         <button class="${v === 'unsure' ? 'on-unsure' : ''}" onclick="verdict('${esc(r.video_id)}','unsure',this)">? Unsure</button>
         <button class="${v === 'wrong' ? 'on-wrong' : ''}" onclick="verdict('${esc(r.video_id)}','wrong',this)">✗ Wrong</button>
       </div>
-      <div class="facts" style="text-align:right"><a href="#" style="${v === 'notabook' ? 'color:var(--warning);font-weight:700' : 'color:var(--text-muted)'}"
-        title="Removes it from every queue: it is a lecture or personal footage, not a book"
-        onclick="event.preventDefault();verdict('${esc(r.video_id)}','notabook',this)">${v === 'notabook' ? "🎥 marked not-a-book" : "🎥 not a book?"}</a></div>
+      <div class="facts" style="display:flex;gap:14px;justify-content:flex-end">
+        <a href="#" style="${v === 'both' ? 'color:var(--accent);font-weight:700' : 'color:var(--text-muted)'}"
+          title="Keep the downloaded copy AND scan the book ourselves — e.g. when the download is only an amateur photo-scan"
+          onclick="event.preventDefault();verdict('${esc(r.video_id)}','both',this)">${v === 'both' ? "⧉ keeping both" : "⧉ keep both (scan too)"}</a>
+        <a href="#" style="${v === 'notabook' ? 'color:var(--warning);font-weight:700' : 'color:var(--text-muted)'}"
+          title="Removes it from every queue: it is a lecture or personal footage, not a book"
+          onclick="event.preventDefault();verdict('${esc(r.video_id)}','notabook',this)">${v === 'notabook' ? "🎥 marked not-a-book" : "🎥 not a book?"}</a></div>
       ${applied}
     </div></div>`;
 }

@@ -269,7 +269,7 @@ def verdict_post():
     vid = str(data.get("video_id", ""))
     verdict = data.get("verdict")
     if not vid or verdict not in ("correct", "wrong", "unsure",
-                                  "notabook", None):
+                                  "notabook", "both", None):
         return jsonify({"error": "bad verdict"}), 400
     if verdict is None:
         VERDICTS.pop(vid, None)

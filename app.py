@@ -284,6 +284,72 @@ def verdict_post():
     return jsonify({"ok": True})
 
 
+ROUTE_LABEL = {"download_and_skip": "have text (downloaded)",
+               "download_pending": "download queued",
+               "blocked_quota": "download queued",
+               "scan_ourselves": "scanning from video",
+               "ia_borrow_available": "borrow on archive.org",
+               "not_book_media_rip": "not a book (lecture/rip)",
+               "not_a_book": "not a book",
+               "human_review": "needs review",
+               "retry_service": "lookup retry"}
+
+
+@app.get("/books")
+def books_page():
+    if not _viewer_ok():
+        return redirect("/")
+    resp = make_response(render_template("books.html"))
+    if request.args.get("token"):
+        resp = make_response(redirect("/books"))
+        resp.set_cookie("vt", VIEW_TOKEN, max_age=180 * 24 * 3600,
+                        httponly=True, secure=True, samesite="Lax")
+    return resp
+
+
+@app.get("/api/books")
+def books_api():
+    """The whole library as rows — the card view answers 'is this right?',
+    this answers 'what do we have?'."""
+    if not _viewer_ok():
+        return jsonify({"error": "unauthorized"}), 401
+    rows = [{"title": r.get("title"), "author": r.get("author"),
+             "year": r.get("year"), "isbn": r.get("isbn"),
+             "isbn_ok": r.get("isbn_anchored"),
+             "status": ROUTE_LABEL.get(r.get("route"), r.get("route") or "?"),
+             "route": r.get("route"),
+             "match": r.get("containment"), "minutes": r.get("minutes"),
+             "verdict": (VERDICTS.get(r["video_id"], {}) or {}).get("verdict")
+                        or r.get("verdict"),
+             "video_id": r.get("video_id"),
+             "play": r.get("play"), "file": r.get("dlfile")}
+            for r in MANIFEST]
+    return jsonify({"rows": rows, "total": len(rows)})
+
+
+@app.get("/books.csv")
+def books_csv():
+    if not _viewer_ok():
+        return "", 401
+    import csv
+    import io
+    buf = io.StringIO()
+    w = csv.writer(buf)
+    w.writerow(["title", "author", "year", "isbn", "isbn_verified", "status",
+                "text_overlap", "video_minutes", "owner_verdict", "video_id"])
+    for r in MANIFEST:
+        w.writerow([r.get("title") or "", r.get("author") or "",
+                    r.get("year") or "", r.get("isbn") or "",
+                    "yes" if r.get("isbn_anchored") else "no",
+                    ROUTE_LABEL.get(r.get("route"), r.get("route") or ""),
+                    r.get("containment") or "", r.get("minutes") or "",
+                    (VERDICTS.get(r["video_id"], {}) or {}).get("verdict") or "",
+                    r.get("video_id") or ""])
+    return buf.getvalue(), 200, {
+        "Content-Type": "text/csv; charset=utf-8",
+        "Content-Disposition": 'attachment; filename="bookscan-library.csv"'}
+
+
 @app.get("/thumb/<name>")
 def thumb(name):
     if not _viewer_ok():

@@ -1,0 +1,124 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Bookscan Library</title>
+<style>
+  :root {
+    color-scheme: dark;
+    --surface-1: #1a1a19; --surface-2: #232322; --surface-3: #2c2c2b;
+    --border: #3a3a38;
+    --text-primary: #fff; --text-secondary: #c3c2b7; --text-muted: #8b8a80;
+    --accent: #3987e5; --good: #0ca30c; --warning: #fab219;
+    --serious: #ec835a; --critical: #d03b3b;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--surface-1); color: var(--text-secondary);
+         font: 13px/1.45 -apple-system, "Segoe UI", system-ui, sans-serif;
+         padding: 18px; }
+  h1 { font-size: 17px; color: var(--text-primary); margin: 0; font-weight: 650; }
+  a { color: var(--accent); text-decoration: none; }
+  .top { display: flex; gap: 16px; align-items: center; flex-wrap: wrap;
+         margin-bottom: 12px; }
+  .spacer { flex: 1; }
+  .muted { color: var(--text-muted); }
+  input, select { background: var(--surface-3); color: var(--text-primary);
+                  border: 1px solid var(--border); border-radius: 7px;
+                  padding: 7px 10px; }
+  input { width: 280px; }
+  table { width: 100%; border-collapse: collapse; }
+  th { text-align: left; font-size: 11px; text-transform: uppercase;
+       letter-spacing: .05em; color: var(--text-muted); font-weight: 600;
+       padding: 7px 8px; border-bottom: 1px solid var(--border);
+       position: sticky; top: 0; background: var(--surface-1); cursor: pointer;
+       white-space: nowrap; }
+  th:hover { color: var(--text-primary); }
+  td { padding: 6px 8px; border-bottom: 1px solid var(--surface-3);
+       vertical-align: top; }
+  td.num { font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .mono { font-family: ui-monospace, Menlo, monospace; font-size: 11px; }
+  .pill { padding: 1px 8px; border-radius: 999px; font-size: 11px;
+          border: 1px solid var(--border); white-space: nowrap; }
+  .s-have { color: var(--good); border-color: var(--good); }
+  .s-queued { color: var(--accent); border-color: var(--accent); }
+  .s-scan { color: var(--warning); border-color: var(--warning); }
+  .s-other { color: var(--text-muted); }
+  .counts { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 12px; }
+  .counts div { background: var(--surface-2); border: 1px solid var(--border);
+                border-radius: 8px; padding: 6px 12px; font-variant-numeric: tabular-nums; }
+  .counts b { color: var(--text-primary); }
+</style>
+</head>
+<body>
+  <div class="top">
+    <h1>The library — every book we are processing</h1>
+    <a href="/">← dashboard</a><a href="/review">review panel →</a>
+    <span class="spacer"></span>
+    <a href="/books.csv">⤓ download CSV</a>
+  </div>
+  <div class="counts" id="counts"></div>
+  <div class="top">
+    <input id="q" placeholder="search title / author / ISBN">
+    <select id="st"><option value="">every status</option></select>
+    <span class="muted" id="shown"></span>
+  </div>
+  <table id="tbl"><thead><tr>
+    <th data-k="title">Title</th><th data-k="author">Author</th>
+    <th data-k="year">Year</th><th data-k="isbn">ISBN</th>
+    <th data-k="status">Status</th><th data-k="match">Match</th>
+    <th data-k="minutes">Video</th><th>Open</th>
+  </tr></thead><tbody></tbody></table>
+
+<script>
+const $ = id => document.getElementById(id);
+const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+let ROWS = [], sortK = "title", sortDir = 1;
+
+const cls = r => r.route === "download_and_skip" ? "s-have"
+  : (r.route || "").startsWith("download") || r.route === "blocked_quota" ? "s-queued"
+  : r.route === "scan_ourselves" ? "s-scan" : "s-other";
+
+function render() {
+  const q = $("q").value.toLowerCase().trim(), st = $("st").value;
+  let rows = ROWS.filter(r =>
+    (!st || r.status === st) &&
+    (!q || `${r.title} ${r.author} ${r.isbn}`.toLowerCase().includes(q)));
+  rows.sort((a, b) => {
+    const x = a[sortK] ?? "", y = b[sortK] ?? "";
+    return (typeof x === "number" && typeof y === "number"
+            ? x - y : String(x).localeCompare(String(y))) * sortDir;
+  });
+  $("shown").textContent = `${rows.length.toLocaleString()} of ${ROWS.length.toLocaleString()}`;
+  $("tbl").tBodies[0].innerHTML = rows.slice(0, 1500).map(r => `<tr>
+    <td>${esc(r.title || "—")}${r.verdict ? ` <span class="muted">(${esc(r.verdict)})</span>` : ""}</td>
+    <td class="muted">${esc(r.author || "")}</td>
+    <td class="num muted">${r.year || ""}</td>
+    <td class="num mono">${esc(r.isbn || "")}${r.isbn_ok ? " ✓" : ""}</td>
+    <td><span class="pill ${cls(r)}">${esc(r.status)}</span></td>
+    <td class="num">${r.match != null ? (100 * r.match).toFixed(0) + "%" : ""}</td>
+    <td class="num muted">${r.minutes != null ? r.minutes + "m" : ""}</td>
+    <td class="num">${r.play ? `<a href="${esc(r.play)}" target="_blank" rel="noopener">▶</a>` : ""}
+        ${r.file ? ` <a href="${esc(r.file)}" target="_blank" rel="noopener">⇱</a>` : ""}</td>
+  </tr>`).join("") || `<tr><td colspan="8" class="muted">nothing matches</td></tr>`;
+}
+
+document.querySelectorAll("th[data-k]").forEach(th => th.onclick = () => {
+  const k = th.dataset.k;
+  sortDir = (k === sortK) ? -sortDir : 1; sortK = k; render();
+});
+$("q").oninput = render; $("st").onchange = render;
+
+fetch("/api/books", {cache: "no-store"}).then(r => r.json()).then(d => {
+  ROWS = d.rows || [];
+  const by = {};
+  ROWS.forEach(r => by[r.status] = (by[r.status] || 0) + 1);
+  $("counts").innerHTML = Object.entries(by).sort((a, b) => b[1] - a[1])
+    .map(([k, v]) => `<div><b>${v.toLocaleString()}</b> ${esc(k)}</div>`).join("");
+  $("st").innerHTML = `<option value="">every status</option>` +
+    Object.keys(by).sort().map(k => `<option>${esc(k)}</option>`).join("");
+  render();
+});
+</script>
+</body>
+</html>

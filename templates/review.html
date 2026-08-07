@@ -167,7 +167,10 @@ function routeChip(r) {
 }
 
 function card(r) {
-  const v = r.verdict;
+  // A model's verdict is shown as a quiet chip; only the owner's own clicks
+  // colour the buttons, so "what have I actually checked" stays legible.
+  const byModel = r.verdict && r.verdict_by === "model";
+  const v = byModel ? null : r.verdict;
   const t0 = r.thumbs && r.thumbs[0], t1 = r.thumbs && r.thumbs[1];
   const isbn = r.isbn ? `${esc(r.isbn)} ${r.isbn_valid ? "✓" : "✗ checksum"}` : "no ISBN read";
   const anchor = r.isbn_anchored ? chip("ISBN off the page ✓", "ok")
@@ -209,7 +212,9 @@ function card(r) {
           title="length of the source video — a real flip-through runs a few minutes; 20+ suggests a lecture or footage">${r.minutes} min video${r.minutes >= 20 ? " ⚠" : ""}</span>` : ""}<br>
         <span class="mono">${isbn}</span></div>
       <div class="chips">${anchor}${routeChip(r)}${cont}${flag}
-        ${r.kept_unverified ? chip("⭐ copy held, needs your ✓", "warn") : ""}
+        ${byModel ? chip(`🤖 model says ${r.verdict === "correct" ? "same book" : esc(r.verdict)}`,
+                         r.verdict === "correct" ? "ok" : "bad") : ""}
+        ${r.kept_unverified && !byModel ? chip("⭐ copy held, needs your ✓", "warn") : ""}
         ${r.cluster ? chip(`🎞 ${r.cluster.n} clips in ${esc(r.cluster.name).slice(0,22)}`, "") : ""}</div>
       ${r.cand_title && r.title && r.cand_title.toLowerCase().slice(0,20) !==
           r.title.toLowerCase().slice(0,20) ?

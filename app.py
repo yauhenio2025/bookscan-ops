@@ -253,9 +253,13 @@ def review_api():
         if v:
             rr["verdict"] = v["verdict"]
             rr["verdict_applied"] = v.get("applied")
+            rr["verdict_by"] = "owner"      # clicked here, this session
         out.append(rr)
+    # Count only what the OWNER decided: a model's verdicts are progress, but
+    # they are not "reviewed by a person".
     reviewed = sum(1 for r in MANIFEST
-                   if VERDICTS.get(r["video_id"]) or r.get("verdict"))
+                   if VERDICTS.get(r["video_id"])
+                   or (r.get("verdict") and r.get("verdict_by") == "owner"))
     return jsonify({"total": len(rows), "all_rows": len(MANIFEST),
                     "reviewed": reviewed, "offset": offset, "rows": out,
                     "thumbs_synced": sum(1 for _ in THUMBS.glob("*.jpg"))})

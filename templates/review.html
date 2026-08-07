@@ -65,6 +65,16 @@
                    background: rgba(0,0,0,.72); color: #fff; padding: 3px 9px;
                    border-radius: 5px; text-decoration: none; font-weight: 700; }
   .compare .play:hover { background: var(--accent); }
+  .chainbox { background: var(--surface-3); border: 1px solid var(--border);
+              border-radius: 8px; padding: 10px; margin-top: 8px; }
+  .chainhead { font-weight: 650; color: var(--text-primary); font-size: 13px; }
+  .nbrs { display: grid; gap: 8px;
+          grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); }
+  .nbr { background: var(--surface-2); border: 1px solid var(--border);
+         border-radius: 7px; overflow: hidden; }
+  .nbr img { width: 100%; aspect-ratio: 4/3; object-fit: cover; display: block; }
+  .nbrmeta { padding: 6px 8px; font-size: 11px; line-height: 1.35; }
+  .nbrbtns { display: flex; gap: 8px; padding: 0 8px 8px; font-size: 12px; }
   .body { padding: 10px 12px 12px; display: flex; flex-direction: column;
           gap: 6px; flex: 1; }
   .title { color: var(--text-primary); font-weight: 650; line-height: 1.3; }
@@ -118,6 +128,7 @@
         <option value="scan_noid">4 · Scan pile, no identity read</option>
         <option value="llmretired">5 · Retired on LLM-read identity (no ISBN)</option>
         <option value="flagged">6 · Flagged by checks</option>
+        <option value="chains">7 · ⛓ Which book is this fragment part of?</option>
       </optgroup>
       <optgroup label="Everything else">
         <option value="all">All books</option>
@@ -231,6 +242,26 @@ function card(r) {
         title="${r.ia_access === 'direct' ? 'Open text copy on archive.org' :
         'Lending-restricted — borrow it with your own tooling'}">📚 archive.org: ${esc(r.ia_identifier)}${
         r.ia_access === 'direct' ? ' (open copy)' : ' (borrow)'}</a></div>` : ""}
+      ${r.chain_case ? `<div class="chainbox">
+        <div class="chainhead">⛓ ${r.chain_case.conflict ? "Two neighbours both look right — which is it?"
+          : "Which book is this fragment part of?"}
+          <span class="muted">· folder <span class="mono">${esc(r.chain_case.folder || "")}</span></span></div>
+        ${r.chain_case.tried.length ? `<div class="muted" style="font-size:12px;margin:4px 0 8px">
+          tried: ${r.chain_case.tried.map(esc).join(" · ")}</div>` : ""}
+        <div class="nbrs">${(r.chain_case.neighbours || []).map(n => `
+          <div class="nbr">
+            <img loading="lazy" src="/thumb/${esc(n.thumb)}" alt="">
+            <div class="nbrmeta"><b>${esc(n.name)}</b> · ${n.minutes}m<br>
+              ${n.title ? esc(n.title) : "<span class='muted'>no identity</span>"}</div>
+            <div class="nbrbtns">
+              ${n.play ? `<a href="${esc(n.play)}" target="_blank" rel="noopener"
+                onclick="event.preventDefault();window.open(this.href,'_blank','noopener')">▶ watch</a>` : ""}
+              <a href="#" onclick="event.preventDefault();chainPick('${esc(r.video_id)}','${esc(n.video_id)}','${esc(n.name)}')">⛓ same book</a>
+            </div>
+          </div>`).join("")}</div>
+        <div style="text-align:right;margin-top:6px">
+          <a href="#" class="muted" onclick="event.preventDefault();verdict('${esc(r.video_id)}','unsure',this)">none of these / unsure</a></div>
+      </div>` : ""}
       ${r.prev ? `<div class="facts" title="A video that begins mid-book is usually part two of the file before it">
         ⏮ previous file: <span class="mono">${esc(r.prev.name)}</span>${
         r.prev.title ? ` — ${esc(r.prev.title)}` : " (no identity)"}
@@ -272,6 +303,14 @@ function flip(el) {
   el.querySelector("img").src = src;
   el.querySelector(".tag").textContent =
       (cur === "a" ? "cover" : "front matter") + " · click to flip";
+}
+
+async function chainPick(vid, anchorId, anchorName) {
+  if (!confirm(`Treat this fragment as part of the same book as ${anchorName}?`)) return;
+  await fetch("/api/verdict", {method: "POST",
+      headers: {"Content-Type": "application/json"},
+      body: JSON.stringify({video_id: vid, verdict: "chain", note: anchorId})});
+  load();
 }
 
 async function verdict(vid, v, btn) {

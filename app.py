@@ -233,6 +233,8 @@ def review_api():
             return False
         if flt == "long" and not (r.get("minutes") and r["minutes"] >= 20):
             return False
+        if flt == "chains" and not r.get("chain_case"):
+            return False
         if flt == "kept" and not r.get("kept_unverified"):
             return False
         if flt == "weak" and not (r.get("route") == "download_and_skip"
@@ -281,7 +283,7 @@ def verdict_post():
     vid = str(data.get("video_id", ""))
     verdict = data.get("verdict")
     if not vid or verdict not in ("correct", "wrong", "unsure",
-                                  "notabook", "both", None):
+                                  "notabook", "both", "chain", None):
         return jsonify({"error": "bad verdict"}), 400
     if verdict is None:
         VERDICTS.pop(vid, None)

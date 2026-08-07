@@ -200,12 +200,20 @@ def review_api():
     if not _viewer_ok():
         return jsonify({"error": "unauthorized"}), 401
     flt = request.args.get("flt", "all")
+    show_hidden = request.args.get("hidden") == "1"
     qs = (request.args.get("q") or "").lower().strip()
     offset = max(0, int(request.args.get("offset", 0)))
     limit = min(200, int(request.args.get("limit", 60)))
 
     def keep(r):
         v = VERDICTS.get(r["video_id"], {}).get("verdict") or r.get("verdict")
+        # Once the owner says "not a book", it should leave their view at
+        # once — the local agent reroutes within a couple of minutes, but the
+        # card must not keep occupying the list until then.
+        if v == "notabook" and not show_hidden and flt != "hidden":
+            return False
+        if flt == "hidden":
+            return v == "notabook"
         if flt == "downloaded" and r.get("route") != "download_and_skip":
             return False
         if flt == "pending" and r.get("route") not in ("download_pending",

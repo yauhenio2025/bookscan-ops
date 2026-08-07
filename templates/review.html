@@ -136,6 +136,9 @@
       </optgroup>
     </select>
     <input id="q" placeholder="search title / author / ISBN" />
+    <label class="muted" style="display:flex;gap:6px;align-items:center;cursor:pointer"
+           title="Cards you marked 'not a book' are hidden by default">
+      <input type="checkbox" id="hid" style="width:auto"> show not-a-book</label>
     <span class="muted count" id="shown"></span>
   </div>
 
@@ -228,6 +231,11 @@ function card(r) {
         title="${r.ia_access === 'direct' ? 'Open text copy on archive.org' :
         'Lending-restricted — borrow it with your own tooling'}">📚 archive.org: ${esc(r.ia_identifier)}${
         r.ia_access === 'direct' ? ' (open copy)' : ' (borrow)'}</a></div>` : ""}
+      ${r.prev ? `<div class="facts" title="A video that begins mid-book is usually part two of the file before it">
+        ⏮ previous file: <span class="mono">${esc(r.prev.name)}</span>${
+        r.prev.title ? ` — ${esc(r.prev.title)}` : " (no identity)"}
+        ${r.prev.play ? ` · <a href="${esc(r.prev.play)}" target="_blank" rel="noopener"
+          onclick="event.preventDefault();event.stopPropagation();window.open(this.href,'_blank','noopener')">▶ check it</a>` : ""}</div>` : ""}
       ${r.searched ? `<div class="facts muted" title="the exact ISBNs and title string lookup searched Anna's with">searched: <span class="mono">${esc(r.searched)}</span></div>` : ""}
       ${r.route_reason ? `<div class="facts" style="color:var(--warning)" title="why this book is being scanned instead of downloaded">${esc(r.route_reason)}</div>` : ""}
       <div class="btns">
@@ -284,7 +292,8 @@ async function verdict(vid, v, btn) {
 
 async function load() {
   const flt = $("flt").value, q = $("q").value;
-  const r = await fetch(`/api/review?flt=${flt}&q=${encodeURIComponent(q)}&offset=${offset}&limit=${LIMIT}`,
+  const r = await fetch(`/api/review?flt=${flt}&q=${encodeURIComponent(q)}&offset=${offset}` +
+                        `&limit=${LIMIT}&hidden=${$("hid").checked ? 1 : 0}`,
                         {cache: "no-store"});
   if (!r.ok) return;
   const d = await r.json();
@@ -305,6 +314,7 @@ if (urlFlt && [...$("flt").options].some(o => o.value === urlFlt)) $("flt").valu
 $("prev").onclick = () => { offset = Math.max(0, offset - LIMIT); load(); };
 $("next").onclick = () => { if (offset + LIMIT < total) { offset += LIMIT; load(); } };
 $("flt").onchange = () => { offset = 0; load(); };
+$("hid").onchange = () => { offset = 0; load(); };
 let deb; $("q").oninput = () => { clearTimeout(deb); deb = setTimeout(() => { offset = 0; load(); }, 350); };
 load();
 </script>

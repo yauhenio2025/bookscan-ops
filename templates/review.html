@@ -67,12 +67,16 @@
   .compare .play:hover { background: var(--accent); }
   .chainbox { background: var(--surface-3); border: 1px solid var(--border);
               border-radius: 8px; padding: 10px; margin-top: 8px; }
-  .chainhead { font-weight: 650; color: var(--text-primary); font-size: 13px; }
+  .chainhead { font-weight: 650; color: var(--text-primary); font-size: 13px;
+               display: flex; gap: 8px; align-items: baseline; flex-wrap: wrap; }
+  .chainhead .chainnb { margin-left: auto; font-size: 12px; font-weight: 600;
+                        color: var(--text-muted); white-space: nowrap; }
+  .chainhead .chainnb:hover { color: var(--warning); }
   .nbrs { display: grid; gap: 8px;
-          grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); }
+          grid-template-columns: repeat(auto-fit, minmax(104px, 1fr)); }
   .nbr { background: var(--surface-2); border: 1px solid var(--border);
          border-radius: 7px; overflow: hidden; }
-  .nbr img { width: 100%; aspect-ratio: 4/3; object-fit: cover; display: block; }
+  .nbr img { width: 100%; aspect-ratio: 16/10; object-fit: cover; display: block; }
   .nbrmeta { padding: 6px 8px; font-size: 11px; line-height: 1.35; }
   .nbrbtns { display: flex; gap: 8px; padding: 0 8px 8px; font-size: 12px; }
   .body { padding: 10px 12px 12px; display: flex; flex-direction: column;
@@ -245,7 +249,11 @@ function card(r) {
       ${r.chain_case ? `<div class="chainbox">
         <div class="chainhead">⛓ ${r.chain_case.conflict ? "Two neighbours both look right — which is it?"
           : "Which book is this fragment part of?"}
-          <span class="muted">· folder <span class="mono">${esc(r.chain_case.folder || "")}</span></span></div>
+          <span class="muted">· folder <span class="mono">${esc(r.chain_case.folder || "")}</span></span>
+          <a href="#" class="chainnb" style="${v === 'notabook' ? 'color:var(--warning);font-weight:700' : ''}"
+             title="Not a book at all — a screen recording, footage, a lecture. Removes it from every queue."
+             onclick="event.preventDefault();verdict('${esc(r.video_id)}','notabook',this)"
+            >${v === 'notabook' ? "🎥 marked not-a-book" : "🎥 not a book"}</a></div>
         ${r.chain_case.tried.length ? `<div class="muted" style="font-size:12px;margin:4px 0 8px">
           tried: ${r.chain_case.tried.map(esc).join(" · ")}</div>` : ""}
         <div class="nbrs">${(r.chain_case.neighbours || []).map(n => `

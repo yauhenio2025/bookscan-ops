@@ -89,6 +89,7 @@
   .banner.stale { display: block; color: var(--warning);
                   border-color: var(--warning); background: rgba(250,178,25,.07); }
   @media (max-width: 640px) { body { padding: 12px; } }
+  .tilecnt { font-weight: 700; margin-left: 6px; font-size: 12px; }
 </style>
 </head>
 <body>
@@ -259,8 +260,22 @@ async function tick() {
     if (r.ok) render(await r.json());
   } catch (e) { /* keep last view; heartbeat pill already reflects staleness */ }
 }
-tick();
-setInterval(tick, 30000);
+async function counts() {
+  try {
+    const r = await fetch("/api/counts", {cache: "no-store"});
+    if (!r.ok) return;
+    for (const [k, v] of Object.entries(await r.json())) {
+      const a = document.querySelector(`a.need[href="/review?flt=${k}"]`);
+      if (!a) continue;
+      let s = a.querySelector(".tilecnt");
+      if (!s) { s = document.createElement("span"); s.className = "tilecnt"; a.querySelector("b").after(s); }
+      s.textContent = v.open ? `${v.open} open` : "✓ clear";
+      s.style.color = v.open ? "var(--warning)" : "var(--good)";
+    }
+  } catch (e) { /* counts are decoration; the tiles still work */ }
+}
+tick(); counts();
+setInterval(tick, 30000); setInterval(counts, 60000);
 </script>
 </body>
 </html>

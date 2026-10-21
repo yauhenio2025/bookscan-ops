@@ -102,6 +102,11 @@
                   border: 1px solid var(--border); border-radius: 7px;
                   padding: 8px 16px; font-weight: 600; cursor: pointer; }
   .applied { font-size: 11px; color: var(--text-muted); }
+  .suggest { margin: 6px 0; padding: 6px 8px; border-radius: 7px; background: var(--surface-3);
+             font-size: 12px; border-left: 3px solid var(--warning); }
+  .suggest.sure { border-left-color: var(--good); }
+  .suggest button { margin-left: 8px; padding: 3px 10px; }
+  .tilecnt { font-weight: 700; margin-left: 6px; }
 </style>
 </head>
 <body>
@@ -156,6 +161,7 @@
            title="Cards you marked 'not a book' are hidden by default">
       <input type="checkbox" id="hid" style="width:auto"> show not-a-book</label>
     <span class="muted count" id="shown"></span>
+    <button id="bulk" hidden title="Applies only the suggestions marked sure (green): duplicates, too-short captures, ≤3% displaced pages, model-confirmed rotation/columns">Apply all sure suggestions on this page</button>
   </div>
 
   <div class="grid" id="grid"></div>
@@ -201,7 +207,8 @@ function card(r) {
       "applied ✓ — " + esc(r.verdict_applied) : "waiting for local agent…"}</span>` : "";
   // Kept-copy cards answer one question — same book or not — so the video
   // frame and the downloaded book's own title page sit side by side.
-  const pdfs = r.pdf_pages || [];
+  const pdfs = r.pdf_pages || r.mid_thumbs || [];
+  const rightTag = r.pdf_pages ? "downloaded PDF · p1" : "mid-book page, as scanned";
   const compare = pdfs.length ? `
     <div class="compare">
       <div class="side"><span class="sidetag">your video</span>
@@ -210,7 +217,7 @@ function card(r) {
           title="play the source video">▶ Play</a>` : ""}</div>
       <div class="side" onclick="cyclePdf(this)" data-i="0"
            data-pages='${JSON.stringify(pdfs)}'>
-        <span class="sidetag">downloaded PDF · p1 ${pdfs.length > 1 ? "· click →" : ""}</span>
+        <span class="sidetag">${rightTag} ${pdfs.length > 1 ? "· click →" : ""}</span>
         <img loading="lazy" src="/thumb/${pdfs[0]}" alt="">
       </div>
     </div>` : "";
@@ -278,12 +285,7 @@ function card(r) {
           onclick="event.preventDefault();event.stopPropagation();window.open(this.href,'_blank','noopener')">▶ check it</a>` : ""}</div>` : ""}
       ${r.searched ? `<div class="facts muted" title="the exact ISBNs and title string lookup searched Anna's with">searched: <span class="mono">${esc(r.searched)}</span></div>` : ""}
       ${r.route_reason ? `<div class="facts" style="color:var(--warning)" title="why this book is being scanned instead of downloaded">${esc(r.route_reason)}</div>` : ""}
-      ${r.gate_reason ? `<div class="facts" style="color:var(--warning)"><b>Gate: ${esc(r.gate_reason)}</b> ${esc(r.gate_detail || "")}</div>
-      <div class="btns">
-        <button class="${v === 'gate_retry' ? 'on-correct' : ''}" onclick="verdict('${esc(r.video_id)}','gate_retry',this)">↻ Retry scan</button>
-        <button class="${v === 'gate_accept' ? 'on-unsure' : ''}" onclick="verdict('${esc(r.video_id)}','gate_accept',this)">✓ Accept as-is</button>
-        <button class="${v === 'gate_skip' ? 'on-wrong' : ''}" onclick="verdict('${esc(r.video_id)}','gate_skip',this)">⏭ Skip</button>
-      </div>` : ""}
+      ${r.gate_reason ? gateBlock(r, v) : ""}
       <div class="btns">
         <button class="${v === 'correct' ? 'on-correct' : ''}" onclick="verdict('${esc(r.video_id)}','correct',this)">✓ Correct</button>
         <button class="${v === 'unsure' ? 'on-unsure' : ''}" onclick="verdict('${esc(r.video_id)}','unsure',this)">? Unsure</button>
@@ -298,6 +300,34 @@ function card(r) {
           onclick="event.preventDefault();verdict('${esc(r.video_id)}','notabook',this)">${v === 'notabook' ? "🎥 marked not-a-book" : "🎥 not a book?"}</a></div>
       ${applied}
     </div></div>`;
+}
+
+const SUG = {gate_accept: "✓ Accept as-is", gate_retry: "↻ Retry", gate_skip: "⏭ Skip"};
+function gateBlock(r, v) {
+  const g = r.gate || {};
+  const pct = g.pages && g.displaced != null ? (100 * g.displaced / g.pages).toFixed(1) : null;
+  const stats = [
+    g.pages ? `${g.pages} pages assembled` : "no pages assembled",
+    pct != null ? `${g.displaced} displaced (${pct}%)` : null,
+    g.hyph != null ? `continuity ${(100 * g.hyph).toFixed(0)}% (floor 80%)` : null,
+    g.weld != null && g.weld > 0.03 ? `column welding ${(100 * g.weld).toFixed(0)}%` : null,
+    g.dup_copy ? "⚠ another copy of this book is already complete or downloaded" : null,
+    g.annas_cands ? `${g.annas_cands} Anna's candidate(s) on record` : "nothing on Anna's",
+  ].filter(Boolean).join(" · ");
+  const tr = g.triage;
+  const seen = tr && tr.orientation ? `model looked at two pages: ${esc(tr.orientation.replace(/_/g, " "))}, ` +
+      `${tr.columns || 1} column${(tr.columns || 1) > 1 ? "s" : ""}, ${tr.readable_order ? "reads in order" : "order unclear"}` +
+      `${tr.page_kind ? " (" + esc(tr.page_kind) + ")" : ""}` : "";
+  const sug = r.suggest ? `<div class="suggest ${r.suggest_sure ? "sure" : ""}">
+      <b>Suggested: ${SUG[r.suggest] || esc(r.suggest)}</b> — ${esc(r.suggest_why)}
+      ${v ? "" : `<button onclick="verdict('${esc(r.video_id)}','${r.suggest}',this)">Apply</button>`}</div>` : "";
+  return `<div class="facts" style="color:var(--warning)"><b>Gate: ${esc(r.gate_reason)}</b> ${esc(r.gate_detail || "")}</div>
+    <div class="facts muted">${esc(stats)}${seen ? "<br>" + seen : ""}</div>${sug}
+    <div class="btns">
+      <button class="${v === 'gate_retry' ? 'on-correct' : ''}" onclick="verdict('${esc(r.video_id)}','gate_retry',this)">↻ Retry scan</button>
+      <button class="${v === 'gate_accept' ? 'on-unsure' : ''}" onclick="verdict('${esc(r.video_id)}','gate_accept',this)">✓ Accept as-is</button>
+      <button class="${v === 'gate_skip' ? 'on-wrong' : ''}" onclick="verdict('${esc(r.video_id)}','gate_skip',this)">⏭ Skip</button>
+    </div>`;
 }
 
 function cyclePdf(el) {
@@ -359,7 +389,21 @@ async function load() {
       `${d.reviewed.toLocaleString()} / ${d.all_rows.toLocaleString()} reviewed · ` +
       `${d.thumbs_synced.toLocaleString()} frames synced`;
   $("page").textContent = total ? `${offset + 1}–${Math.min(offset + LIMIT, total)} of ${total.toLocaleString()}` : "";
+  const sure = rows.filter(r => r.suggest && r.suggest_sure && !r.verdict);
+  $("bulk").hidden = !(flt === "gated" && sure.length);
+  $("bulk").textContent = `Apply all ${sure.length} sure suggestion${sure.length === 1 ? "" : "s"} on this page`;
 }
+
+$("bulk").onclick = async () => {
+  const sure = rows.filter(r => r.suggest && r.suggest_sure && !r.verdict);
+  $("bulk").disabled = true;
+  for (const r of sure) {
+    await fetch("/api/verdict", {method: "POST", headers: {"Content-Type": "application/json"},
+        body: JSON.stringify({video_id: r.video_id, verdict: r.suggest, note: "bulk: " + r.suggest_why})});
+  }
+  $("bulk").disabled = false;
+  load();
+};
 
 // Deep links from the dashboard: /review?flt=kept lands straight on that list.
 const urlFlt = new URLSearchParams(location.search).get("flt");

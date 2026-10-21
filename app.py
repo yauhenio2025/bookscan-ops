@@ -195,6 +195,76 @@ def review_page():
     return resp
 
 
+def _keep(r, flt, show_hidden, qs):
+    v = VERDICTS.get(r["video_id"], {}).get("verdict") or r.get("verdict")
+    # Once the owner says "not a book", it should leave their view at
+    # once — the local agent reroutes within a couple of minutes, but the
+    # card must not keep occupying the list until then.
+    if v == "notabook" and not show_hidden and flt != "hidden":
+        return False
+    if flt == "hidden":
+        return v == "notabook"
+    if flt == "downloaded" and r.get("route") != "download_and_skip":
+        return False
+    if flt == "pending" and r.get("route") not in ("download_pending",
+                                                   "blocked_quota"):
+        return False
+    if flt == "flagged" and not r.get("dl_category"):
+        return False
+    if flt == "gated" and not r.get("gate_reason"):
+        return False
+    if flt == "scan" and r.get("route") != "scan_ourselves":
+        return False
+    if flt.startswith("scan_") and r.get("scan_kind") != flt[5:]:
+        return False
+    if flt == "unreviewed" and v:
+        return False
+    if flt == "wrong" and v != "wrong":
+        return False
+    if flt == "notisbn" and r.get("isbn_anchored"):
+        return False
+    if flt == "long" and not (r.get("minutes") and r["minutes"] >= 20):
+        return False
+    if flt == "chains" and not r.get("chain_case"):
+        return False
+    if flt == "kept" and not r.get("kept_unverified"):
+        return False
+    if flt == "weak" and not (r.get("route") == "download_and_skip"
+                              and r.get("containment") is not None
+                              and r["containment"] < 0.30):
+        return False
+    if flt == "cluster" and not r.get("cluster"):
+        return False
+    if flt == "llmretired" and not (r.get("route") == "download_and_skip"
+                                    and not r.get("isbn_anchored")):
+        return False
+    if flt == "iaborrow" and r.get("route") != "ia_borrow_available":
+        return False
+    if flt == "iadirect" and r.get("ia_access") != "direct":
+        return False
+    if qs and qs not in " ".join(str(r.get(k) or "").lower() for k in
+                                 ("title", "author", "isbn", "video_id")):
+        return False
+    return True
+
+
+TILE_FILTERS = ("gated", "kept", "cluster", "weak", "scan_noid", "llmretired",
+                "flagged", "chains")
+
+
+@app.get("/api/counts")
+def counts():
+    """Open (undecided) and total cards behind each dashboard tile."""
+    if not _viewer_ok():
+        return jsonify({"error": "unauthorized"}), 401
+    out = {}
+    for f in TILE_FILTERS:
+        rows = [r for r in MANIFEST if _keep(r, f, False, "")]
+        out[f] = {"open": sum(1 for r in rows if not VERDICTS.get(r["video_id"])),
+                  "total": len(rows)}
+    return jsonify(out)
+
+
 @app.get("/api/review")
 def review_api():
     if not _viewer_ok():
@@ -205,59 +275,9 @@ def review_api():
     offset = max(0, int(request.args.get("offset", 0)))
     limit = min(200, int(request.args.get("limit", 60)))
 
-    def keep(r):
-        v = VERDICTS.get(r["video_id"], {}).get("verdict") or r.get("verdict")
-        # Once the owner says "not a book", it should leave their view at
-        # once — the local agent reroutes within a couple of minutes, but the
-        # card must not keep occupying the list until then.
-        if v == "notabook" and not show_hidden and flt != "hidden":
-            return False
-        if flt == "hidden":
-            return v == "notabook"
-        if flt == "downloaded" and r.get("route") != "download_and_skip":
-            return False
-        if flt == "pending" and r.get("route") not in ("download_pending",
-                                                       "blocked_quota"):
-            return False
-        if flt == "flagged" and not r.get("dl_category"):
-            return False
-        if flt == "gated" and not r.get("gate_reason"):
-            return False
-        if flt == "scan" and r.get("route") != "scan_ourselves":
-            return False
-        if flt.startswith("scan_") and r.get("scan_kind") != flt[5:]:
-            return False
-        if flt == "unreviewed" and v:
-            return False
-        if flt == "wrong" and v != "wrong":
-            return False
-        if flt == "notisbn" and r.get("isbn_anchored"):
-            return False
-        if flt == "long" and not (r.get("minutes") and r["minutes"] >= 20):
-            return False
-        if flt == "chains" and not r.get("chain_case"):
-            return False
-        if flt == "kept" and not r.get("kept_unverified"):
-            return False
-        if flt == "weak" and not (r.get("route") == "download_and_skip"
-                                  and r.get("containment") is not None
-                                  and r["containment"] < 0.30):
-            return False
-        if flt == "cluster" and not r.get("cluster"):
-            return False
-        if flt == "llmretired" and not (r.get("route") == "download_and_skip"
-                                        and not r.get("isbn_anchored")):
-            return False
-        if flt == "iaborrow" and r.get("route") != "ia_borrow_available":
-            return False
-        if flt == "iadirect" and r.get("ia_access") != "direct":
-            return False
-        if qs and qs not in " ".join(str(r.get(k) or "").lower() for k in
-                                     ("title", "author", "isbn", "video_id")):
-            return False
-        return True
-
-    rows = [r for r in MANIFEST if keep(r)]
+    rows = [r for r in MANIFEST if _keep(r, flt, show_hidden, qs)]
+    # Decided cards sink to the bottom: the top of every list is work left.
+    rows.sort(key=lambda r: 1 if VERDICTS.get(r["video_id"]) else 0)
     out = []
     for r in rows[offset:offset + limit]:
         rr = dict(r)

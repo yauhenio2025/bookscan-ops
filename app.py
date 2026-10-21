@@ -13,6 +13,7 @@ No database: the latest snapshot lives in memory and in /tmp (ephemeral is
 fine — the agent re-pushes every couple of minutes).
 """
 import base64
+import gzip
 import json
 import os
 import re
@@ -70,11 +71,26 @@ def _pusher_ok():
 
 # ------------------------------------------------------------ agent endpoints
 
+def _body_json():
+    """The agent's uplink is slow (~18 KB/s measured 2026-10-21), so it may
+    gzip the body; accept both."""
+    raw = request.get_data()
+    if request.headers.get("Content-Encoding") == "gzip":
+        try:
+            raw = gzip.decompress(raw)
+        except Exception:
+            return None
+    try:
+        return json.loads(raw)
+    except Exception:
+        return None
+
+
 @app.post("/api/review-manifest")
 def review_manifest():
     if not _pusher_ok():
         return jsonify({"error": "unauthorized"}), 401
-    data = request.get_json(force=True, silent=True)
+    data = _body_json()
     if not isinstance(data, dict) or not isinstance(data.get("rows"), list):
         return jsonify({"error": "bad body"}), 400
     global MANIFEST
@@ -99,7 +115,7 @@ def thumbs_have():
 def thumbs_upload():
     if not _pusher_ok():
         return jsonify({"error": "unauthorized"}), 401
-    data = request.get_json(force=True, silent=True) or {}
+    data = _body_json() or {}
     n = 0
     for item in data.get("items", []):
         name = str(item.get("name", ""))

@@ -126,7 +126,8 @@
   <div class="controls">
     <select id="flt">
       <optgroup label="⭐ Where your judgment is needed">
-        <option value="kept" selected>1 · We hold it but can't prove it — your ✓ retires it</option>
+        <option value="gated" selected>0 · Scan refused by quality gate - retry / accept / skip</option>
+        <option value="kept">1 · We hold it but can't prove it — your ✓ retires it</option>
         <option value="cluster">2 · Short-clip folders — one publication?</option>
         <option value="weak">3 · Weakest retirements (&lt;30% match)</option>
         <option value="scan_noid">4 · Scan pile, no identity read</option>
@@ -277,6 +278,12 @@ function card(r) {
           onclick="event.preventDefault();event.stopPropagation();window.open(this.href,'_blank','noopener')">▶ check it</a>` : ""}</div>` : ""}
       ${r.searched ? `<div class="facts muted" title="the exact ISBNs and title string lookup searched Anna's with">searched: <span class="mono">${esc(r.searched)}</span></div>` : ""}
       ${r.route_reason ? `<div class="facts" style="color:var(--warning)" title="why this book is being scanned instead of downloaded">${esc(r.route_reason)}</div>` : ""}
+      ${r.gate_reason ? `<div class="facts" style="color:var(--warning)"><b>Gate: ${esc(r.gate_reason)}</b> ${esc(r.gate_detail || "")}</div>
+      <div class="btns">
+        <button class="${v === 'gate_retry' ? 'on-correct' : ''}" onclick="verdict('${esc(r.video_id)}','gate_retry',this)">↻ Retry scan</button>
+        <button class="${v === 'gate_accept' ? 'on-unsure' : ''}" onclick="verdict('${esc(r.video_id)}','gate_accept',this)">✓ Accept as-is</button>
+        <button class="${v === 'gate_skip' ? 'on-wrong' : ''}" onclick="verdict('${esc(r.video_id)}','gate_skip',this)">⏭ Skip</button>
+      </div>` : ""}
       <div class="btns">
         <button class="${v === 'correct' ? 'on-correct' : ''}" onclick="verdict('${esc(r.video_id)}','correct',this)">✓ Correct</button>
         <button class="${v === 'unsure' ? 'on-unsure' : ''}" onclick="verdict('${esc(r.video_id)}','unsure',this)">? Unsure</button>

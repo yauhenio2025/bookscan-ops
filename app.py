@@ -221,6 +221,8 @@ def review_api():
             return False
         if flt == "flagged" and not r.get("dl_category"):
             return False
+        if flt == "gated" and not r.get("gate_reason"):
+            return False
         if flt == "scan" and r.get("route") != "scan_ourselves":
             return False
         if flt.startswith("scan_") and r.get("scan_kind") != flt[5:]:
@@ -283,7 +285,8 @@ def verdict_post():
     vid = str(data.get("video_id", ""))
     verdict = data.get("verdict")
     if not vid or verdict not in ("correct", "wrong", "unsure",
-                                  "notabook", "both", "chain", None):
+                                  "notabook", "both", "chain", "gate_retry",
+                                  "gate_accept", "gate_skip", None):
         return jsonify({"error": "bad verdict"}), 400
     if verdict is None:
         VERDICTS.pop(vid, None)
